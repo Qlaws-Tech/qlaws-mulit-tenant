@@ -1,0 +1,38 @@
+# --- Core Framework & Server ---
+# The web framework
+fastapi>=0.104.0
+# ASGI server to run the application (standard includes uvloop for performance)
+uvicorn[standard]>=0.23.0
+# Data validation and settings management (v2 is significantly faster)
+pydantic>=2.4.0
+pydantic-settings>=2.0.0
+
+# --- Database (Async & No ORM) ---
+# High-performance async PostgreSQL driver (Required for avoiding ORM overhead)
+asyncpg>=0.28.0
+
+# --- Security & Authentication ---
+# For JWT token creation and validation (OAuth2 implementation)
+python-jose[cryptography]>=3.3.0
+# For password hashing (bcrypt) and verification
+passlib[bcrypt]>=1.7.4
+# Required for FastAPI's OAuth2PasswordRequestForm (if using form-login)
+python-multipart>=0.0.6
+
+# --- Utilities ---
+# Email validation for Pydantic models (e.g., User registration)
+email-validator>=2.0.0
+# Handling UUIDs/Timezones if standard lib isn't enough (usually std lib is fine, but pytz is good backup)
+pytz>=2023.3
+
+# --- Testing (Critical for your requested TDD approach) ---
+# The testing framework
+pytest>=7.4.0
+# Plugin for testing async functions (FastAPI/asyncpg)
+pytest-asyncio>=0.21.0
+# Async HTTP client for Integration/E2E tests against FastAPI
+httpx>=0.25.0
+# For mocking the Repository layer in Unit tests
+pytest-mock>=3.11.0
+# For checking test coverage
+pytest-cov>=4.1.0

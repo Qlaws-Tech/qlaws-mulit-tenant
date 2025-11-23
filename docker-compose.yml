@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_multi_tenant
+    environment:
+      POSTGRES_DB: authz_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin-ui
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: adminpassword
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres          # <-- service name, not container_name
+    restart: unless-stopped
+
+  redis-cache:
+    image: redis:latest
+    container_name: redis-cache
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+    # Redis Commander UI for Redis
+  redis-commander:
+      image: rediscommander/redis-commander:latest
+      container_name: redis-commander-ui
+      environment:
+        - REDIS_HOSTS=local:redis-cache:6379
+      ports:
+        - "8091:8081"
+      depends_on:
+        - redis-cache
+      restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
