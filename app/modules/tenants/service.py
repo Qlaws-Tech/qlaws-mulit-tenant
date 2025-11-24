@@ -21,6 +21,8 @@ class TenantService:
                 raise HTTPException(status_code=409, detail="Domain already taken")
 
         # 2. Atomic Onboarding Transaction
+        # We wrap the creation of Tenant, Role, and User in a single transaction.
+        # This ensures that if any step fails, the database remains clean.
         async with self.repo.conn.transaction():
 
             # A. Create Tenant
@@ -32,7 +34,7 @@ class TenantService:
             admin_role = await self.role_repo.create_role(RoleCreate(
                 name="Admin",
                 description="Super Administrator",
-                permission_keys=["*"]
+                permission_keys=["*"]  # Wildcard permission for Super Admin
             ))
 
             # C. Create Admin User
@@ -46,11 +48,11 @@ class TenantService:
                     display_name=data.admin_name,
                     role="admin"
                 ),
-                tenant_id=tenant.tenant_id  # <--- Explicit Passing
+                tenant_id=tenant.tenant_id  # <--- Explicit Passing prevents "invalid input syntax for uuid"
             )
 
             # D. Assign Role to User
-            # Link the newly created user to the Admin role
+            # Link the newly created user to the Admin role via the user_roles table
             await self.repo.conn.execute(
                 """
                 INSERT INTO user_roles (user_tenant_id, role_id) 

@@ -9,6 +9,7 @@ from app.modules.users.repository import UserRepository
 from app.modules.users.service import UserService
 from app.modules.users.schemas import UserCreate, UserResponse, UserUpdate, UserContextResponse
 from app.modules.audit.repository import AuditRepository
+from app.dependencies.auth_utils import get_current_user_id
 
 router = APIRouter()
 
@@ -20,18 +21,7 @@ async def get_user_service(conn=Depends(get_tenant_db_connection)) -> UserServic
 
 
 # Helper to get current user ID from token for Audit Logging
-def get_current_user_id(request: Request) -> Optional[str]:
-    auth_header = request.headers.get("Authorization")
-    if not auth_header:
-        return None
-    try:
-        token = auth_header.split(" ")[1]
-        # Note: Signature verification happens in the RLS dependency,
-        # here we just need to extract the ID safely for logging.
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        return payload.get("sub")
-    except (JWTError, IndexError):
-        return None
+
 
 
 # --- Bootstrap Endpoint (/me) ---

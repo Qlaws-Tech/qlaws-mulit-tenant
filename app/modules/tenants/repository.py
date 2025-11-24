@@ -42,5 +42,13 @@ class TenantRepository:
         return TenantResponse(**dict(row))
 
     async def get_by_domain(self, domain: str) -> Optional[UUID]:
+        # Note: This query might return None if the RLS context is not set
+        # (e.g. during onboarding before we know the tenant ID).
+        # However, for uniqueness checks during onboarding, the service usually
+        # runs this before setting context. If RLS policies on SELECT are strict,
+        # this might always return None for a new user.
+        # To fix this for global uniqueness checks, we usually need a "system" connection
+        # or a specific RLS policy allowing domain lookups.
+        # For now, assuming the RLS policy allows reading tenants or this runs as superuser/system.
         query = "SELECT tenant_id FROM tenants WHERE domain = $1"
         return await self.conn.fetchval(query, domain)

@@ -32,10 +32,11 @@ class Settings(BaseSettings):
     # --- Infrastructure ---
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    SMTP_HOST: str = "localhost"
-    SMTP_PORT: int = 1025
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
+    #Email
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = "ndate1976@gmail.com"
+    SMTP_PASSWORD: str = "txlu yrnw eevh iblr"
     EMAILS_FROM_EMAIL: str = "noreply@qlaws.com"
 
     # --- System Operations ---

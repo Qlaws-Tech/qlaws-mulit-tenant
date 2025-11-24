@@ -21,6 +21,7 @@ from app.modules.sso.router import router as sso_router
 from app.modules.api_keys.router import router as apikeys_router
 from app.modules.scim.router import router as scim_router
 from app.modules.system.router import router as system_router
+from app.modules.invitations.router import router as invite_router
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -114,6 +115,8 @@ app.include_router(apikeys_router, prefix="/api/v1/api-keys", tags=["API Keys"])
 app.include_router(scim_router, prefix="/scim/v2", tags=["SCIM"])
 app.include_router(audit_router, prefix="/api/v1/audit", tags=["Audit"])
 app.include_router(system_router, prefix="/api/v1/system", tags=["System"])
+app.include_router(invite_router, prefix="/api/v1/invitations", tags=["Invitations"])
+
 
 
 # --- Health Check (Runtime Liveness) ---

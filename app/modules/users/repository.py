@@ -15,13 +15,11 @@ class UserRepository:
     async def create_user(self, user: UserCreate, tenant_id: Optional[UUID] = None) -> UserResponse:
         """
         Creates a global user and links them to the current tenant.
-        Accepts optional 'tenant_id' to support onboarding flow where
-        session variable might be fragile.
         """
-        # 1. Hash the password before storing
+        # 1. Hash Password
         hashed_pw = pwd_context.hash(user.password)
 
-        # 2. Insert into Global Users Table
+        # 2. Insert User
         user_query = """
             INSERT INTO users (primary_email, display_name, hashed_password)
             VALUES ($1, $2, $3)
@@ -36,20 +34,20 @@ class UserRepository:
             hashed_pw
         )
 
-        # 3. Link User to Current Tenant
-        # FIX: We use COALESCE to prioritize the explicit tenant_id ($4) if provided.
-        # If $4 is NULL (standard flow), it falls back to current_setting.
-        # This resolves "invalid input syntax" errors during onboarding.
+        # 3. Link User to Tenant
+        # CRITICAL FIX: We use COALESCE to prioritize the explicit 'tenant_id' ($4).
+        # If $4 is NULL, we try the session variable.
+        # We perform the cast ::uuid INSIDE SQL to avoid Python string issues.
         link_query = """
             INSERT INTO user_tenants (tenant_id, user_id, tenant_email, tenant_role, status)
             VALUES (
-                COALESCE($4::uuid, current_setting('app.current_tenant_id')::uuid), 
+                COALESCE($4::uuid, current_setting('app.current_tenant_id', true)::uuid), 
                 $1, $2, $3, 'active'
             )
             RETURNING created_at, status;
         """
 
-        # Prepare tenant_id string for binding (or None)
+        # Prepare explicit ID string if provided
         tid_val = str(tenant_id) if tenant_id else None
 
         link_row = await self.conn.fetchrow(
@@ -57,7 +55,7 @@ class UserRepository:
             user_row['user_id'],
             user.email,
             user.role,
-            tid_val  # $4
+            tid_val  # <--- $4 passed here
         )
 
         return UserResponse(
@@ -69,10 +67,8 @@ class UserRepository:
             created_at=link_row['created_at']
         )
 
+    # ... (Keep get_users_by_tenant, get_user_by_id, update_user_status, delete_user_from_tenant, get_user_context as they were) ...
     async def get_users_by_tenant(self) -> List[UserResponse]:
-        """
-        Lists all users belonging to the current tenant.
-        """
         query = """
             SELECT u.user_id, u.primary_email as email, u.display_name, 
                    ut.status, ut.tenant_role, ut.created_at
