@@ -1,31 +1,36 @@
-from pydantic import BaseModel, UUID4, Field
-from typing import List, Optional
+# app/modules/groups/schemas.py
+
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from uuid import UUID
 from datetime import datetime
 
-# --- Core Group Schemas ---
-class GroupBase(BaseModel):
+
+class GroupCreate(BaseModel):
     name: str = Field(..., min_length=2)
     description: Optional[str] = None
 
-class GroupCreate(GroupBase):
-    pass
 
 class GroupUpdate(BaseModel):
+    """
+    Optional updates for a group.
+    Currently not used heavily, but kept for compatibility with routers/tests.
+    """
     name: Optional[str] = None
     description: Optional[str] = None
 
-class GroupResponse(GroupBase):
-    group_id: UUID4
+
+class GroupRolesUpdate(BaseModel):
+    """
+    Placeholder for updating roles associated with a group.
+    If you don’t yet support group→role mapping, you can ignore this in the service.
+    """
+    role_ids: List[UUID]
+
+
+class GroupResponse(BaseModel):
+    group_id: UUID
+    name: str
+    description: Optional[str]
+    member_count: int
     created_at: datetime
-    member_count: int = 0  # Computed field
-    roles: List[str] = []  # List of role names assigned to this group
-
-    class Config:
-        from_attributes = True
-
-# --- Action Schemas ---
-class AddMemberRequest(BaseModel):
-    user_id: UUID4  # We accept user_id (global), but map to user_tenant_id internally
-
-class AssignRoleRequest(BaseModel):
-    role_id: UUID4

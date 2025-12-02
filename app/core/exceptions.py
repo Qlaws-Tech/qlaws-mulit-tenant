@@ -1,45 +1,23 @@
-from fastapi import Request, FastAPI
-from fastapi.responses import JSONResponse
+# app/core/exceptions.py
+
+from fastapi import HTTPException, status
 
 
-# 1. Base Exception
-class QLawsException(Exception):
-    """Base class for all application-specific exceptions"""
-    pass
+class QLAWSError(HTTPException):
+    def __init__(self, detail="An error occurred", status_code=status.HTTP_400_BAD_REQUEST):
+        super().__init__(status_code=status_code, detail=detail)
 
 
-# 2. Specific Domain Exceptions
-class DuplicateDomainError(QLawsException):
-    """Raised when a tenant tries to register a domain that already exists"""
-    pass
+class AuthenticationError(QLAWSError):
+    def __init__(self, detail="Authentication failed"):
+        super().__init__(detail=detail, status_code=status.HTTP_401_UNAUTHORIZED)
 
 
-class ResourceNotFound(QLawsException):
-    """Generic 404 wrapper"""
-    pass
+class PermissionDenied(QLAWSError):
+    def __init__(self, detail="Permission denied"):
+        super().__init__(detail=detail, status_code=status.HTTP_403_FORBIDDEN)
 
 
-# 3. The Exception Handler (Connects Logic to HTTP)
-async def qlaws_exception_handler(request: Request, exc: QLawsException):
-    if isinstance(exc, DuplicateDomainError):
-        return JSONResponse(
-            status_code=409,  # Conflict
-            content={"detail": str(exc), "error_code": "DOMAIN_EXISTS"}
-        )
-
-    if isinstance(exc, ResourceNotFound):
-        return JSONResponse(
-            status_code=404,
-            content={"detail": str(exc), "error_code": "NOT_FOUND"}
-        )
-
-    # Default catch-all for custom exceptions
-    return JSONResponse(
-        status_code=400,
-        content={"detail": str(exc), "error_code": "BAD_REQUEST"}
-    )
-
-
-# Helper to register them in main.py
-def register_exception_handlers(app: FastAPI):
-    app.add_exception_handler(QLawsException, qlaws_exception_handler)
+class NotFoundError(QLAWSError):
+    def __init__(self, detail="Resource not found"):
+        super().__init__(detail=detail, status_code=status.HTTP_404_NOT_FOUND)

@@ -1,129 +1,67 @@
-from fastapi import APIRouter, Depends, Request
-from fastapi.security import OAuth2PasswordBearer
-from jose import jwt
-from typing import List
-from config_dev import settings
-from app.core.limiter import limiter  # <-- Import Rate Limiter
+# app/modules/auth/router.py
+
+from fastapi import APIRouter, Depends, Request, HTTPException, status
+
 from app.dependencies.database import get_db_connection
-from app.dependencies.rls import get_tenant_db_connection
-from app.modules.auth.schemas import (
-    LoginRequest, LoginResponse, Token, ForgotPasswordRequest,
-    ResetPasswordRequest, SessionResponse, MfaLoginVerifyRequest
-)
 from app.modules.auth.service import AuthService
+from app.modules.auth.schemas import LoginRequest, TokenResponse
+from app.core.security import get_bearer_token
 
-router = APIRouter()
-service = AuthService()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+router = APIRouter(
+    prefix="/auth",
+    tags=["auth"],
+)
 
 
-@router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")  # <--- Rate Limit: 5 requests per minute per IP
+# -------------------------------------------------------
+# Dependency factory for AuthService
+# -------------------------------------------------------
+async def get_auth_service(conn=Depends(get_db_connection)) -> AuthService:
+    return AuthService(conn)
+
+
+# -------------------------------------------------------
+# LOGIN
+# -------------------------------------------------------
+@router.post("/login", response_model=TokenResponse)
 async def login(
-        request: Request,  # Required argument for slowapi limiter
-        form_data: LoginRequest,
-        conn=Depends(get_db_connection)
+    body: LoginRequest,
+    request: Request,
+    svc: AuthService = Depends(get_auth_service),
 ):
-    """
-    Step 1: Credential check.
-    Returns either valid Tokens OR a request for MFA.
-    Protected by Rate Limiting.
-    """
-    client_ip = request.client.host
-    user_agent = request.headers.get("user-agent", "unknown")
-
-    return await service.authenticate_user(
-        conn,
-        form_data.email,
-        form_data.password,
-        str(form_data.tenant_id),
-        client_ip,
-        user_agent
-    )
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent", "")
+    return await svc.login(body, ip_address=ip, user_agent=ua)
 
 
-@router.post("/mfa/login-verify", response_model=Token)
-@limiter.limit("5/minute")  # Rate limit MFA attempts as well
-async def mfa_login_verify(
-        request: Request,
-        payload: MfaLoginVerifyRequest,
-        conn=Depends(get_db_connection)
+# -------------------------------------------------------
+# REFRESH TOKENS
+# -------------------------------------------------------
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_tokens(
+    refresh_token: str,  # comes from query param: ?refresh_token=...
+    svc: AuthService = Depends(get_auth_service),
 ):
-    """
-    Step 2: Verify OTP to complete login (if Step 1 returned 'mfa_required').
-    """
-    client_ip = request.client.host
-    user_agent = request.headers.get("user-agent", "unknown")
-
-    return await service.verify_mfa_login(
-        conn, payload.pre_auth_token, payload.code, client_ip, user_agent
-    )
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing refresh_token",
+        )
+    return await svc.refresh_tokens(refresh_token)
 
 
-@router.post("/refresh", response_model=Token)
-async def refresh_token(
-        refresh_token: str,
-        request: Request,
-        conn=Depends(get_db_connection)
-):
-    """Rotate tokens using a valid Refresh Token."""
-    client_ip = request.client.host
-    user_agent = request.headers.get("user-agent", "unknown")
-    return await service.rotate_tokens(conn, refresh_token, client_ip, user_agent)
-
-
-@router.post("/logout", status_code=204)
+# -------------------------------------------------------
+# LOGOUT
+# -------------------------------------------------------
+@router.post("/logout")
 async def logout(
-        token: str = Depends(oauth2_scheme),
-        conn=Depends(get_db_connection)
+    request: Request,
+    svc: AuthService = Depends(get_auth_service),
 ):
-    """Blacklists the current Access Token."""
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        jti = payload.get("jti")
-        tid = payload.get("tid")
-        exp = payload.get("exp")
-        await service.logout_user(conn, jti, tid, exp)
-    except Exception:
-        pass
-    return
+    # Access token comes from Authorization: Bearer <token>
+    token = get_bearer_token(request)
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent", "")
 
-
-@router.get("/sessions", response_model=List[SessionResponse])
-async def list_my_sessions(
-        token: str = Depends(oauth2_scheme),
-        conn=Depends(get_tenant_db_connection)
-):
-    """View all active sessions for the current user."""
-    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    return await service.list_sessions(conn, payload.get("sub"))
-
-
-@router.delete("/sessions/{session_id}", status_code=204)
-async def revoke_my_session(
-        session_id: str,
-        token: str = Depends(oauth2_scheme),
-        conn=Depends(get_tenant_db_connection)
-):
-    """Revoke a specific session."""
-    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    await service.revoke_session(conn, session_id, payload.get("sub"))
-
-
-@router.post("/forgot-password", status_code=202)
-async def forgot_password(
-        payload: ForgotPasswordRequest,
-        conn=Depends(get_db_connection)
-):
-    token = await service.request_password_reset(conn, payload.email)
-    # In production, remove 'debug_token' return value to prevent leakage
-    return {"message": "If user exists, email sent.", "debug_token": token}
-
-
-@router.post("/reset-password", status_code=200)
-async def reset_password_confirm(
-        payload: ResetPasswordRequest,
-        conn=Depends(get_db_connection)
-):
-    await service.reset_password(conn, payload.token, payload.new_password)
-    return {"message": "Password updated successfully."}
+    await svc.logout(token, ip_address=ip, user_agent=ua)
+    return {"detail": "Logged out"}

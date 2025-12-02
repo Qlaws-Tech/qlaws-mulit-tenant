@@ -1,45 +1,50 @@
+# app/modules/system/repository.py
+
 from asyncpg import Connection
-from app.modules.system.schemas import CleanupResult
+
 
 class SystemRepository:
-    def __init__(self, conn: Connection):
+    """
+    Low-level cleanup repository.
+
+    Performs cross-tenant maintenance:
+    - Deletes expired refresh tokens
+    - Deletes expired password reset tokens
+    - Deletes expired blacklist entries
+    """
+
+    def __init__(self, conn: Connection) -> None:
         self.conn = conn
 
-    async def cleanup_audit_logs(self, retention_days: int) -> int:
+    async def cleanup_expired_refresh_tokens(self) -> int:
         """
-        Deletes audit logs older than retention policy.
-        Note: On massive tables, DROP PARTITION is better, but DELETE is fine for MVP.
-        """
-        query = """
-            DELETE FROM audit_logs 
-            WHERE event_time < now() - ($1 || ' days')::interval
-        """
-        # execute returns "DELETE <count>"
-        result = await self.conn.execute(query, str(retention_days))
-        return self._parse_count(result)
+        Deletes rows in refresh_tokens where expires_at < now().
 
-    async def cleanup_expired_tokens(self) -> int:
+        Returns: number of rows deleted.
         """
-        Removes refresh tokens that are expired.
-        """
-        query = "DELETE FROM refresh_tokens WHERE expires_at < now()"
-        result = await self.conn.execute(query)
-        return self._parse_count(result)
-
-    async def cleanup_revoked_tokens(self, retention_days: int) -> int:
-        """
-        Removes blacklisted JTI records older than X days.
-        """
-        query = """
-            DELETE FROM token_blacklist 
-            WHERE revoked_at < now() - ($1 || ' days')::interval
-        """
-        result = await self.conn.execute(query, str(retention_days))
-        return self._parse_count(result)
-
-    def _parse_count(self, command_tag: str) -> int:
-        # Format is usually "DELETE 123"
+        result = await self.conn.execute(
+            "DELETE FROM refresh_tokens WHERE expires_at < now()"
+        )
+        # asyncpg returns e.g. "DELETE 3"
         try:
-            return int(command_tag.split(" ")[1])
-        except:
+            return int(result.split()[-1])
+        except Exception:
+            return 0
+
+    async def cleanup_expired_password_reset_tokens(self) -> int:
+        result = await self.conn.execute(
+            "DELETE FROM password_reset_tokens WHERE expires_at < now()"
+        )
+        try:
+            return int(result.split()[-1])
+        except Exception:
+            return 0
+
+    async def cleanup_expired_blacklist_entries(self) -> int:
+        result = await self.conn.execute(
+            "DELETE FROM token_blacklist WHERE expires_at < now()"
+        )
+        try:
+            return int(result.split()[-1])
+        except Exception:
             return 0

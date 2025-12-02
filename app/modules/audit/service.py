@@ -1,32 +1,44 @@
-from typing import List, Optional
-from datetime import datetime
+# app/modules/audit/service.py
+
+from uuid import UUID
+
 from app.modules.audit.repository import AuditRepository
-from app.modules.audit.schemas import AuditLogResponse
+from app.modules.audit.schemas import AuditQuery, AuditLogResponse, AuditLogCreate
 
 
 class AuditService:
     def __init__(self, repo: AuditRepository):
         self.repo = repo
 
-    async def get_tenant_logs(
-            self,
-            user_id: Optional[str],
-            action: Optional[str],
-            start_date: Optional[datetime],
-            end_date: Optional[datetime],
-            limit: int,
-            offset: int
-    ) -> List[AuditLogResponse]:
+    async def log(
+        self,
+        tenant_id: UUID,
+        actor_user_id: UUID | None,
+        action_type: str,
+        resource_type: str,
+        resource_id: str | None,
+        ip_address: str | None,
+        details: dict,
+    ) -> None:
+        """
+        Logs an event.
+        Note: 'tenant_id' is passed here for interface consistency but the
+        Repository uses the active DB connection's RLS setting.
+        """
+        # 1. Construct the payload schema
+        payload = AuditLogCreate(
+            action_type=action_type,
+            resource_type=resource_type,
+            resource_id=resource_id or "",
+            details=details or {},
+        )
 
-        raw_logs = await self.repo.get_logs(user_id, action, start_date, end_date, limit, offset)
+        # 2. Call repository with the expected signature
+        await self.repo.log_event(
+            payload=payload,
+            actor_user_id=actor_user_id,
+            ip_address=ip_address
+        )
 
-        # Convert raw dictionary rows to Pydantic models (handles JSON parsing automatically)
-        parsed_logs = []
-        for row in raw_logs:
-            # Ensure details is a dict if driver returns string
-            if isinstance(row.get('details'), str):
-                import json
-                row['details'] = json.loads(row['details'])
-            parsed_logs.append(AuditLogResponse(**row))
-
-        return parsed_logs
+    async def query(self, tenant_id: UUID, q: AuditQuery) -> list[AuditLogResponse]:
+        return await self.repo.query_events(tenant_id, q)

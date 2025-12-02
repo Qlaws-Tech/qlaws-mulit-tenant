@@ -1,47 +1,69 @@
-from pydantic import BaseModel, EmailStr, UUID4, Field
-from typing import Optional, Dict, Any, Union
+from uuid import UUID
+
+from pydantic import BaseModel, UUID4, Field, ConfigDict
+from typing import Optional, Any, Dict
 from datetime import datetime
 
-# --- Token Schemas ---
-class Token(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str
+
+# ---------- Core Auth Schemas ----------
 
 class LoginRequest(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     email: str
-    password: str
+    password: str = Field(..., min_length=6)
+    tenant_id: UUID
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    refresh_token: str | None = None
+    expires_in: int | None = None
+
+
+# ---------- Sessions ----------
+
+class SessionResponse(BaseModel):
+    session_id: UUID
+    user_tenant_id: UUID
+    tenant_id: UUID
+    ip_address: Optional[str] = None
+    device_info: Optional[dict[str, Any]] = None
+    revoked: bool
+    last_seen_at: datetime
+    created_at: datetime
+
+
+# ---------- Password Reset ----------
+
+class ForgotPasswordRequest(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    email: str
     tenant_id: UUID4
 
-# --- MFA Enforcement Schemas (NEW) ---
-class MfaRequiredResponse(BaseModel):
-    mfa_required: bool = True
-    pre_auth_token: str
-    message: str = "MFA verification required"
-
-class MfaLoginVerifyRequest(BaseModel):
-    pre_auth_token: str
-    code: str
-
-# Combined Login Response
-LoginResponse = Union[Token, MfaRequiredResponse]
-
-# --- Password Management Schemas ---
-class ForgotPasswordRequest(BaseModel):
-    email: str
 
 class ResetPasswordRequest(BaseModel):
     token: str
-    new_password: str = Field(..., min_length=8)
+    new_password: str = Field(
+        ...,
+        min_length=8,
+        description="New password (already validated by frontend policy)",
+    )
 
-# --- Session Schemas ---
-class SessionResponse(BaseModel):
-    session_id: UUID4
-    ip_address: Optional[str]
-    device_info: Optional[Dict[str, Any]]
-    last_seen_at: datetime
+class TokenPairResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+class SessionRead(BaseModel):
+    session_id: str
+    user_id: str
+    user_agent: str | None = None
+    ip_address: str | None = None
     created_at: datetime
-    is_current: bool = False
-
-    class Config:
-        from_attributes = True
+    expires_at: datetime

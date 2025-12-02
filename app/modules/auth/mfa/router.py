@@ -1,47 +1,78 @@
-from fastapi import APIRouter, Depends, Request
-from jose import jwt
-from config_dev import settings
-from app.dependencies.rls import get_tenant_db_connection
-from app.modules.auth.mfa.service import MfaService
-from app.modules.auth.mfa.repository import MfaRepository
-from app.modules.auth.mfa.schemas import MfaSetupResponse, MfaVerifyRequest, MfaMethodResponse
+# app/modules/auth/mfa/router.py
 
-router = APIRouter()
+from fastapi import APIRouter, Depends, Request, HTTPException, status
+from jose import jwt, JWTError
+from uuid import UUID
+
+from app.core.config import settings
+from app.dependencies.database import get_tenant_db_connection
+from app.modules.auth.mfa.repository import MFARepository
+from app.modules.auth.mfa.service import MFAService
+from app.modules.auth.mfa.schemas import MFAEnrollRequest, MFAEnrollResponse
+
+router = APIRouter(tags=["MFA"])
 
 
-async def get_mfa_service(conn=Depends(get_tenant_db_connection)):
-    return MfaService(MfaRepository(conn))
+async def get_mfa_service(conn = Depends(get_tenant_db_connection)) -> MFAService:
+    repo = MFARepository(conn)
+    return MFAService(repo, conn)
 
 
-@router.get("/setup", response_model=MfaSetupResponse)
-async def setup_mfa(request: Request, service: MfaService = Depends(get_mfa_service)):
+def _extract_user_and_tenant_from_auth(request: Request) -> tuple[UUID, UUID]:
     """
-    Step 1: Generate Secret & QR URI.
-    User scans this on their phone.
+    Lightweight auth helper:
+    - Reads Bearer token
+    - Decodes JWT with SECRET_KEY/ALGORITHM
+    - Returns (user_id, tenant_id)
+    Raises 401 on any issue.
     """
-    # Extract user email from token (assuming it's in there or we fetch it)
-    # For simplicity, using a placeholder, but you should fetch user profile
-    return service.generate_secret(email="user@example.com")
+    auth = request.headers.get("Authorization")
+    if not auth:
+        raise HTTPException(status_code=401, detail="Missing Authorization")
+
+    try:
+        scheme, token = auth.split(" ")
+        if scheme.lower() != "bearer":
+            raise ValueError()
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Authorization header")
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    sub = payload.get("sub")
+    tid = payload.get("tid")
+    if not sub or not tid:
+        raise HTTPException(status_code=401, detail="Malformed token")
+
+    try:
+        user_id = UUID(sub)
+        tenant_id = UUID(tid)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Malformed token subject/tenant")
+
+    return user_id, tenant_id
 
 
-@router.post("/verify", response_model=MfaMethodResponse)
-async def verify_and_enable_mfa(
-        data: MfaVerifyRequest,
-        request: Request,
-        service: MfaService = Depends(get_mfa_service)
+@router.post("/enroll", response_model=MFAEnrollResponse)
+async def enroll_mfa_device(
+    request: Request,
+    body: MFAEnrollRequest,
+    service: MFAService = Depends(get_mfa_service),
 ):
     """
-    Step 2: User sends the code from their phone.
-    We verify and save it.
+    Enroll an MFA device for the currently authenticated user.
+    Test `test_mfa_device_registration_flow` hits this with:
+      POST /api/v1/mfa/enroll
+      body={"device_type": "totp", "device_name": "Authy"}
+    and checks that `device_id` exists in the response.
     """
-    # Extract User ID and Tenant ID from the current Auth Token
-    token = request.headers.get("Authorization").split(" ")[1]
-    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    user_id = payload.get("sub")
-    tenant_id = payload.get("tid")
-
-    # Verify code and save
-    mfa_method = await service.setup_totp(user_id, tenant_id, data.secret, data.code)
-
-    # Enable it immediately
-    return await service.enable_totp(mfa_method.mfa_id)
+    user_id, tenant_id = _extract_user_and_tenant_from_auth(request)
+    resp = await service.enroll_device(user_id, tenant_id, body)
+    return resp

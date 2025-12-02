@@ -1,91 +1,144 @@
-from asyncpg import Connection
-from typing import List, Optional
-from datetime import datetime
-from uuid import UUID, uuid4
+# app/modules/audit/repository.py
+
 import json
-from app.modules.audit.schemas import AuditLogCreate
+from typing import List, Optional, Any
+from uuid import UUID
+
+from asyncpg import Connection
+
+from app.modules.audit.schemas import AuditLogCreate, AuditLogEntry, AuditQuery, AuditLogResponse
 
 
 class AuditRepository:
+    """
+    Thin wrapper around audit_logs table.
+    Uses current_setting('app.current_tenant_id') for tenant scoping.
+    """
+
     def __init__(self, conn: Connection):
         self.conn = conn
 
-    async def log_event(self, log: AuditLogCreate):
+    async def log_event(
+            self,
+            payload: AuditLogCreate,
+            actor_user_id: Optional[UUID] = None,
+            ip_address: Optional[str] = None,
+    ) -> None:
         """
-        Inserts an immutable audit record.
+        Insert an audit log entry.
         """
-        try:
-            tenant_id = await self.conn.fetchval("SHOW app.current_tenant_id")
-        except:
-            tenant_id = None
-
-        # Generate UUID here
-        new_audit_id = uuid4()
-
-        query = """
-            INSERT INTO audit_logs (
-                audit_id, tenant_id, actor_user_id, action_type, 
-                resource_type, resource_id, details, ip_address
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        """
+        details_json = json.dumps(payload.details or {})
 
         await self.conn.execute(
-            query,
-            new_audit_id,  # $1
-            tenant_id,  # $2
-            log.actor_user_id,  # $3 <--- Ensure this maps to schema field
-            log.action_type,  # $4
-            log.resource_type,  # $5
-            log.resource_id,  # $6
-            json.dumps(log.details),  # $7
-            log.ip_address  # $8 <--- Ensure this maps to schema field
+            """
+            INSERT INTO audit_logs (
+                audit_id,
+                tenant_id,
+                actor_user_id,
+                action_type,
+                resource_type,
+                resource_id,
+                ip_address,
+                details
+            )
+            VALUES (
+                uuid_generate_v4(),
+                current_setting('app.current_tenant_id', true)::uuid,
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6::jsonb
+            )
+            """,
+            actor_user_id,
+            payload.action_type,
+            payload.resource_type,
+            payload.resource_id,
+            ip_address,
+            details_json,
         )
 
-    async def get_logs(
-            self,
-            user_id: Optional[str] = None,
-            action: Optional[str] = None,
-            start_date: Optional[datetime] = None,
-            end_date: Optional[datetime] = None,
-            limit: int = 50,
-            offset: int = 0
-    ) -> List[dict]:
+    async def list_logs(self, limit: int = 100, offset: int = 0) -> List[AuditLogEntry]:
         """
-        Fetches audit logs.
-        Note: We MUST select actor_user_id and ip_address for them to appear in the API response.
+        Basic list (deprecated in favor of query_events, but kept for compatibility).
         """
-        query = """
-            SELECT event_time, actor_user_id, action_type, resource_type, resource_id, details, ip_address
+        rows = await self.conn.fetch(
+            """
+            SELECT
+                audit_id,
+                tenant_id,
+                actor_user_id,
+                action_type,
+                resource_type,
+                resource_id,
+                ip_address,
+                details,
+                created_at
             FROM audit_logs
-            WHERE 1=1
+            ORDER BY created_at DESC
+            LIMIT $1 OFFSET $2
+            """,
+            limit,
+            offset,
+        )
+        return [AuditLogEntry(**r) for r in rows]
+
+    async def query_events(self, tenant_id: UUID, q: AuditQuery) -> List[AuditLogResponse]:
         """
-        params = []
-        param_idx = 1
+        Dynamic filtering for audit logs.
+        """
+        # 1. Base Query
+        sql = """
+            SELECT
+                audit_id,
+                tenant_id,
+                actor_user_id,
+                action_type,
+                resource_type,
+                resource_id,
+                ip_address,
+                details,
+                created_at
+            FROM audit_logs
+            WHERE tenant_id = $1
+        """
+        params: List[Any] = [tenant_id]
 
-        if user_id:
-            query += f" AND actor_user_id = ${param_idx}::uuid"
-            params.append(user_id)
-            param_idx += 1
+        # 2. Dynamic Filters
+        # Note: We start params at $1, so next is $2
+        idx = 2
 
-        if action:
-            query += f" AND action_type = ${param_idx}"
-            params.append(action)
-            param_idx += 1
+        if q.action_type:
+            sql += f" AND action_type = ${idx}"
+            params.append(q.action_type)
+            idx += 1
 
-        if start_date:
-            query += f" AND event_time >= ${param_idx}"
-            params.append(start_date)
-            param_idx += 1
+        if q.resource_type:
+            sql += f" AND resource_type = ${idx}"
+            params.append(q.resource_type)
+            idx += 1
 
-        if end_date:
-            query += f" AND event_time <= ${param_idx}"
-            params.append(end_date)
-            param_idx += 1
+        if q.actor_user_id:
+            sql += f" AND actor_user_id = ${idx}"
+            params.append(q.actor_user_id)
+            idx += 1
 
-        query += f" ORDER BY event_time DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
-        params.append(limit)
-        params.append(offset)
+        if q.start_date:
+            sql += f" AND created_at >= ${idx}"
+            params.append(q.start_date)
+            idx += 1
 
-        rows = await self.conn.fetch(query, *params)
-        return [dict(row) for row in rows]
+        if q.end_date:
+            sql += f" AND created_at <= ${idx}"
+            params.append(q.end_date)
+            idx += 1
+
+        # 3. Sorting and Pagination
+        sql += f" ORDER BY created_at DESC LIMIT ${idx} OFFSET ${idx + 1}"
+        params.append(q.limit)
+        params.append(q.offset)
+
+        rows = await self.conn.fetch(sql, *params)
+        return [AuditLogResponse(**r) for r in rows]

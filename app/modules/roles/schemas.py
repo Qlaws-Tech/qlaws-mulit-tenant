@@ -1,37 +1,26 @@
-from pydantic import BaseModel, UUID4, Field
+# app/modules/roles/schemas.py
+
+from pydantic import BaseModel, Field
 from typing import List, Optional
+from uuid import UUID
 from datetime import datetime
 
 
-# --- Permissions ---
-class PermissionResponse(BaseModel):
-    permission_id: UUID4
-    key: str
-    description: Optional[str]
-
-
-# --- Roles ---
-class RoleBase(BaseModel):
+class RoleCreate(BaseModel):
     name: str = Field(..., min_length=2)
     description: Optional[str] = None
-
-
-class RoleCreate(RoleBase):
-    # When creating a role, we might pass a list of permission keys (e.g., ["doc.read", "case.edit"])
-    permission_keys: List[str] = []
+    permission_keys: List[str] = Field(default_factory=list)
 
 
 class RoleUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    permission_keys: Optional[List[str]] = None  # If provided, replaces existing permissions
+    permission_keys: Optional[List[str]] = None
 
 
-class RoleResponse(RoleBase):
-    role_id: UUID4
-    is_builtin: bool
-    permissions: List[str] = []  # List of keys
+class RoleResponse(BaseModel):
+    role_id: UUID
+    name: str
+    description: Optional[str]
+    permissions: List[str]
     created_at: datetime
-
-    class Config:
-        from_attributes = True

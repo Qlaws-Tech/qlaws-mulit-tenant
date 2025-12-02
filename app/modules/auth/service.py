@@ -1,207 +1,272 @@
-from fastapi import HTTPException
-from datetime import datetime, timezone, timedelta
-from uuid import uuid4
-import uuid
-import hashlib
-import json
-import pyotp
-from jose import jwt
-from config_dev import settings
-from app.core.security import verify_password, create_access_token, get_password_hash
-from app.core.email import send_email  # <-- Integrated Email Service
+# app/modules/auth/service.py
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+from uuid import UUID
+
+from fastapi import HTTPException, status
+from asyncpg import Connection
+
 from app.modules.auth.repository import AuthRepository
-from app.modules.auth.schemas import MfaRequiredResponse
+from app.modules.auth.schemas import LoginRequest, TokenResponse
+from app.modules.audit.repository import AuditRepository
+from app.modules.audit.schemas import AuditLogCreate
+from app.core.security import (
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_access_token,
+    datetime_from_timestamp,
+)
+from app.core.config import settings
 
 
 class AuthService:
-    # --- Login with MFA Interception ---
-    async def authenticate_user(self, conn, email: str, password: str, tenant_id: str, ip: str, user_agent: str):
-        # 1. Enforce RLS Context
-        try:
-            await conn.execute("SELECT set_config('app.current_tenant_id', $1, true)", str(tenant_id))
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid Tenant ID")
+    """
+    Authentication service:
+    - login via email/password + tenant_id
+    - refresh tokens using refresh token
+    - logout via access token (blacklisting)
+    """
 
-        # 2. Fetch User
-        row = await conn.fetchrow(
-            """
-            SELECT u.user_id, u.hashed_password, ut.status, ut.user_tenant_id
-            FROM user_tenants ut
-            JOIN users u ON ut.user_id = u.user_id
-            WHERE ut.tenant_email = $1
-            """,
-            email
+    def __init__(self, conn: Connection):
+        self.conn = conn
+        self.auth_repo = AuthRepository(conn)
+        self.audit_repo = AuditRepository(conn)
+
+    # ------------------------------------------------------------------
+    # LOGIN
+    # ------------------------------------------------------------------
+    async def login(
+        self,
+        payload: LoginRequest,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> TokenResponse:
+        tenant_id: UUID = payload.tenant_id
+
+        # 1) Set RLS tenant context *for this connection*.
+        await self.conn.execute(
+            "SELECT set_config('app.current_tenant_id', $1, true)",
+            str(tenant_id),
         )
 
-        if not row or not verify_password(password, row['hashed_password']):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+        # 2) Fetch user + tenant membership
+        user_row = await self.auth_repo.get_user_for_login(
+            tenant_id=tenant_id,
+            email=payload.email,
+        )
 
-        if row['status'] != 'active':
-            raise HTTPException(status_code=403, detail="User is inactive")
+        if not user_row:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found for this tenant",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-        repo = AuthRepository(conn)
+        if user_row.get("status") != "active":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User is not active for this tenant",
+            )
 
-        # 3. MFA Enforcement Check
-        if await repo.is_mfa_enabled(str(row['user_id'])):
-            # Generate short-lived Pre-Auth Token
-            pre_auth_token = self._create_pre_auth_token(row['user_id'], tenant_id)
-            return MfaRequiredResponse(pre_auth_token=pre_auth_token)
+        # 3) Verify password
+        if not verify_password(payload.password, user_row["hashed_password"]):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-        # 4. Standard Login (No MFA)
-        return await self._finalize_login(repo, row['user_id'], row['user_tenant_id'], tenant_id, ip, user_agent)
+        user_id = user_row["user_id"]
 
-    # --- MFA Verification Step 2 ---
-    async def verify_mfa_login(self, conn, pre_auth_token: str, code: str, ip: str, user_agent: str):
-        # 1. Decode Pre-Auth Token
-        try:
-            payload = jwt.decode(pre_auth_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-            if payload.get("type") != "pre_auth":
-                raise Exception("Invalid token type")
-            user_id = payload.get("sub")
-            tenant_id = payload.get("tid")
-        except Exception:
-            raise HTTPException(status_code=401, detail="Invalid or expired pre-auth session")
+        # 4) Create tokens
+        access_token_expires = timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
 
-        # 2. Verify OTP
-        repo = AuthRepository(conn)
-        # Temporarily set context to fetch MFA secret
-        await conn.execute("SELECT set_config('app.current_tenant_id', $1, true)", str(tenant_id))
+        access_token = create_access_token(
+            data={
+                "sub": str(user_id),
+                "tid": str(tenant_id),
+            },
+            expires_delta=access_token_expires,
+        )
 
-        secret = await repo.get_totp_secret(user_id)
-        if not secret:
-            raise HTTPException(400, detail="MFA configuration invalid")
+        refresh_token = create_refresh_token(
+            data={
+                "sub": str(user_id),
+                "tid": str(tenant_id),
+            }
+        )
 
-        totp = pyotp.TOTP(secret)
-        if not totp.verify(code):
-            raise HTTPException(401, detail="Invalid OTP code")
+        # 5) Audit successful login
+        await self.audit_repo.log_event(
+            AuditLogCreate(
+                action_type="auth.login",
+                resource_type="user",
+                resource_id=str(user_id),
+                details={
+                    "tenant_id": str(tenant_id),
+                    "ip_address": ip_address,
+                    "user_agent": user_agent or "",
+                },
+            ),
+            actor_user_id=user_id,
+            ip_address=ip_address,
+        )
 
-        # 3. Finalize Login
-        ut_row = await conn.fetchrow(
-            "SELECT user_tenant_id FROM user_tenants WHERE user_id=$1::uuid AND tenant_id=$2::uuid", user_id, tenant_id)
+        return TokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+            refresh_token=refresh_token,
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
 
-        return await self._finalize_login(repo, uuid.UUID(user_id), ut_row['user_tenant_id'], tenant_id, ip, user_agent)
+    # ------------------------------------------------------------------
+    # REFRESH TOKENS
+    # ------------------------------------------------------------------
+    async def refresh_tokens(self, refresh_token: str) -> TokenResponse:
+        """
+        Exchange a valid refresh token for a new access + refresh pair.
+        """
+        payload = decode_token(refresh_token, verify_exp=True)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+            )
 
-    # --- Helpers ---
-    def _create_pre_auth_token(self, user_id, tenant_id):
-        expire = datetime.now(timezone.utc) + timedelta(minutes=5)
-        to_encode = {"sub": str(user_id), "tid": str(tenant_id), "type": "pre_auth", "exp": expire}
-        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        token_type = payload.get("type")
+        if token_type and token_type != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type for refresh",
+            )
 
-    async def _finalize_login(self, repo, user_id, user_tenant_id, tenant_id, ip, ua):
-        # RLS Compliance: Pass tenant_id (str) to match current session context
-        session_id = await repo.create_session(user_tenant_id, tenant_id, ip, ua)
+        user_id = payload.get("sub")
+        tenant_id = payload.get("tid") or payload.get("tenant_id")
 
-        tenant_id_str = str(tenant_id)
-        access_token = create_access_token(subject=user_id, tenant_id=tenant_id_str)
+        if not user_id or not tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token missing subject or tenant",
+            )
 
-        raw_refresh = str(uuid4()) + str(uuid4())
-        refresh_hash = hashlib.sha256(raw_refresh.encode()).hexdigest()
-        refresh_expires = datetime.now(timezone.utc) + timedelta(days=7)
+        access_token_expires = timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
+        new_access = create_access_token(
+            data={"sub": str(user_id), "tid": str(tenant_id)},
+            expires_delta=access_token_expires,
+        )
+        new_refresh = create_refresh_token(
+            data={"sub": str(user_id), "tid": str(tenant_id)}
+        )
 
-        await repo.create_refresh_token(session_id, refresh_hash, refresh_expires)
+        return TokenResponse(
+            access_token=new_access,
+            token_type="bearer",
+            refresh_token=new_refresh,
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
 
-        return {
-            "access_token": access_token,
-            "refresh_token": raw_refresh,
-            "token_type": "bearer"
-        }
+    # ------------------------------------------------------------------
+    # LOGOUT
+    # ------------------------------------------------------------------
+    async def logout(
+        self,
+        token: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> dict:
+        """
+        Logout by blacklisting the *access token*.
 
-    # --- Token Rotation ---
-    async def rotate_tokens(self, conn, refresh_token: str, ip: str, user_agent: str):
-        repo = AuthRepository(conn)
-        token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
+        Matches DB schema:
+          token_blacklist(
+            jti TEXT PRIMARY KEY NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT now(),
+            tenant_id UUID,
+            user_id UUID,
+            token_hash TEXT,
+            expires_at TIMESTAMPTZ NOT NULL
+          )
+        """
 
-        data = await repo.get_refresh_token_data(token_hash)
-        if not data:
-            raise HTTPException(401, "Invalid refresh token")
+        payload = decode_token(token, verify_exp=False)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+            )
 
-        # Security Check: Ensure session hasn't been revoked remotely
-        if data['revoked'] or data['session_revoked'] or data['expires_at'] < datetime.now(timezone.utc):
-            raise HTTPException(401, "Token or Session expired/revoked")
+        user_id = payload.get("sub")
+        tenant_id = payload.get("tid") or payload.get("tenant_id")
+        exp_ts = payload.get("exp")
 
-        await repo.revoke_refresh_token(data['refresh_id'])
+        if not user_id or not tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token missing subject or tenant",
+            )
 
-        tenant_id_str = str(data['tenant_id'])
-        new_access = create_access_token(subject=data['user_id'], tenant_id=tenant_id_str)
+        # Ensure tenant context is set for audit logs
+        await self.conn.execute(
+            "SELECT set_config('app.current_tenant_id', $1, true)",
+            str(tenant_id),
+        )
 
-        new_raw_refresh = str(uuid4()) + str(uuid4())
-        new_hash = hashlib.sha256(new_raw_refresh.encode()).hexdigest()
-        new_expires = datetime.now(timezone.utc) + timedelta(days=7)
-
-        await repo.create_refresh_token(data['session_id'], new_hash, new_expires)
-
-        return {
-            "access_token": new_access,
-            "refresh_token": new_raw_refresh,
-            "token_type": "bearer"
-        }
-
-    # --- Session Management ---
-    async def list_sessions(self, conn, user_id: str):
-        repo = AuthRepository(conn)
-        sessions = await repo.list_user_sessions(user_id)
-        for s in sessions:
-            # Handle JSON Parsing
-            if isinstance(s.get('device_info'), str):
-                try:
-                    s['device_info'] = json.loads(s['device_info'])
-                except json.JSONDecodeError:
-                    s['device_info'] = {}
-                    # Handle IP conversion for Pydantic
-            if s.get('ip_address'):
-                s['ip_address'] = str(s['ip_address'])
-        return sessions
-
-    async def revoke_session(self, conn, session_id: str, user_id: str):
-        repo = AuthRepository(conn)
-        await repo.revoke_session(session_id, user_id)
-
-    # --- Logout ---
-    async def logout_user(self, conn, jti: str, tenant_id: str, exp_timestamp: int):
-        repo = AuthRepository(conn)
-        if not exp_timestamp:
-            expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+        # Determine expiry for blacklist entry
+        if exp_ts is not None:
+            try:
+                expires_at = datetime_from_timestamp(exp_ts)
+            except Exception:
+                expires_at = datetime.now(timezone.utc) + timedelta(
+                    minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+                )
         else:
-            expires_at = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
-        await repo.revoke_token(jti, tenant_id, expires_at)
+            expires_at = datetime.now(timezone.utc) + timedelta(
+                minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+            )
 
-    # --- Password Reset ---
-    async def request_password_reset(self, conn, email: str):
-        user = await conn.fetchrow("SELECT user_id FROM users WHERE primary_email = $1", email)
+        # Use a hash of the access token as both jti and token_hash
+        token_hash = hash_access_token(token)
+        jti = token_hash
 
-        # Security: Always return a "success" signal (None or token) to prevent Email Enumeration
-        if not user:
-            return None
+        await self.conn.execute(
+            """
+            INSERT INTO token_blacklist (jti, token_hash, tenant_id, user_id, expires_at)
+            VALUES ($1, $2, $3::uuid, $4::uuid, $5)
+            ON CONFLICT (jti) DO UPDATE
+               SET token_hash = EXCLUDED.token_hash,
+                   tenant_id  = EXCLUDED.tenant_id,
+                   user_id    = EXCLUDED.user_id,
+                   expires_at = EXCLUDED.expires_at
+            """,
+            jti,
+            token_hash,
+            str(tenant_id),
+            str(user_id),
+            expires_at,
+        )
 
-        reset_token = str(uuid4())
-        token_hash = hashlib.sha256(reset_token.encode()).hexdigest()
-        expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+        await self.audit_repo.log_event(
+            AuditLogCreate(
+                action_type="auth.logout",
+                resource_type="user",
+                resource_id=str(user_id),
+                details={
+                    "tenant_id": str(tenant_id),
+                    "ip_address": ip_address,
+                    "user_agent": user_agent or "",
+                },
+            ),
+            actor_user_id=user_id,
+            ip_address=ip_address,
+        )
 
-        repo = AuthRepository(conn)
-        await repo.create_reset_token(str(user['user_id']), token_hash, expires_at)
-
-        # Email Delivery
-        link = f"https://app.qlaws.com/reset?token={reset_token}"
-        body = f"Click here to reset your password: {link}"
-
-        try:
-            await send_email("Password Reset Request", email, body)
-        except Exception as e:
-            # Log error but don't crash the request
-            print(f"Failed to send email: {e}")
-
-        return reset_token  # Only for testing convenience
-
-    async def reset_password(self, conn, token: str, new_password: str):
-        repo = AuthRepository(conn)
-        lookup_hash = hashlib.sha256(token.encode()).hexdigest()
-
-        record = await repo.get_valid_reset_token(lookup_hash)
-        if not record:
-            raise HTTPException(status_code=400, detail="Invalid or expired token")
-
-        new_pw_hash = get_password_hash(new_password)
-
-        async with conn.transaction():
-            await repo.update_password(record['user_id'], new_pw_hash)
-            await repo.mark_token_used(record['reset_id'])
+        return {"detail": "Logged out"}

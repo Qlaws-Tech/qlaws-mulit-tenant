@@ -1,70 +1,125 @@
-from fastapi import Depends, HTTPException, status, Request
-from jose import jwt
-from app.core.config import settings
-from app.dependencies.database import get_db_connection
+# app/dependencies/permissions.py
+
+from __future__ import annotations
+
+from typing import Iterable, Set, List
+from uuid import UUID
+
+from fastapi import Depends, HTTPException, Request, status
+
+from app.core.security import get_bearer_token, decode_token
+from app.dependencies.database import get_tenant_db_connection
 from app.modules.users.repository import UserRepository
+
+
+def _normalize_permissions(perms: Iterable[str] | None) -> Set[str]:
+    """
+    Normalize permissions into a set of strings.
+    """
+    if not perms:
+        return set()
+    return {str(p) for p in perms}
+
+
+async def _get_effective_permissions(
+    request: Request,
+    conn=Depends(get_tenant_db_connection),
+) -> Set[str]:
+    """
+    Extract effective permissions from the JWT.
+    If they are not present in the token, fall back to loading from DB.
+    """
+    token = get_bearer_token(request)
+    payload = decode_token(token)
+
+    # 1) Prefer permissions embedded in the token
+    perms = payload.get("permissions")
+    if perms is not None:
+        return _normalize_permissions(perms)
+
+    # 2) Fallback: load from DB via UserRepository
+    user_id_str = payload.get("sub")
+    tenant_id = getattr(request.state, "tenant_id", None)
+
+    if not user_id_str or not tenant_id:
+        # No way to resolve permissions, treat as no permissions
+        return set()
+
+    try:
+        user_id = UUID(user_id_str)
+    except ValueError:
+        return set()
+
+    repo = UserRepository(conn)
+    ctx = await repo.get_user_context(user_id, tenant_id)
+    return _normalize_permissions(getattr(ctx, "permissions", []))
 
 
 def require_permission(required_perm: str):
     """
-    Factory to create a dependency that checks for a specific permission key.
+    Dependency factory enforcing a *single* permission.
+
+    Usage:
+        @router.get("/something", dependencies=[Depends(require_permission("user.read"))])
+        async def handler(...):
+            ...
     """
 
     async def permission_checker(
-            request: Request,
-            conn=Depends(get_db_connection)  # Raw connection
-    ):
-        # 1. Extract User/Tenant from Token
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            raise HTTPException(status_code=401, detail="Missing Authorization Header")
+        request: Request,
+        conn=Depends(get_tenant_db_connection),
+    ) -> bool:
+        effective_permissions = await _get_effective_permissions(request, conn)
 
-        try:
-            token = auth_header.split(" ")[1]
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-            user_id = payload.get("sub")
-            tenant_id = payload.get("tid")
-        except Exception:
-            raise HTTPException(status_code=401, detail="Invalid Token")
+        # Wildcards:
+        #   "*"           => full access
+        #   "tenant.*"    => any tenant-scoped permission
+        if "*" in effective_permissions:
+            return True
 
-        # 2. CRITICAL FIX: Set RLS Context
-        try:
-            await conn.execute(
-                "SELECT set_config('app.current_tenant_id', $1, true)",
-                str(tenant_id)
-            )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Permission Check Failed: {str(e)}")
+        # Direct match
+        if required_perm in effective_permissions:
+            return True
 
-        # 3. Fetch Effective Permissions
-        repo = UserRepository(conn)
-        context = await repo.get_user_context(user_id, tenant_id)
+        # Prefix wildcard: "tenant.manage" is satisfied by "tenant.*"
+        if "." in required_perm:
+            prefix = required_perm.split(".", 1)[0] + ".*"
+            if prefix in effective_permissions:
+                return True
 
-        if not context:
-            raise HTTPException(status_code=403, detail="User context not found")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Missing required permission: {required_perm}",
+        )
 
-        # 4. Check Permission
-        roles = context.get("roles", [])
-        effective_permissions = set(context.get("permissions", []))
+    return permission_checker
 
-        # FIX: Robust Admin Bypass Logic
-        # 1. Check for "Admin" role (Case-Insensitive)
-        is_admin_role = any(r.lower() == "admin" for r in roles)
-        # 2. Check for Wildcard Permission "*"
-        has_wildcard = "*" in effective_permissions
-        # 3. Check for legacy/specific admin permission
-        has_manage_perm = "tenant.manage" in effective_permissions
 
-        if is_admin_role or has_wildcard or has_manage_perm:
-            return True  # Admin bypass success
+def require_permissions(required: List[str]):
+    """
+    Backward-compatible factory enforcing a *set* of permissions.
+    Any endpoint that previously did something like:
 
-        # Standard Check
-        if required_perm not in effective_permissions:
+        dependencies=[Depends(require_permissions(["user.read", "user.update"]))]
+
+    will work with this version.
+
+    It does NOT take a 'user' object anymore; it reads from the JWT / DB.
+    """
+
+    async def checker(
+        request: Request,
+        conn=Depends(get_tenant_db_connection),
+    ) -> bool:
+        effective_permissions = await _get_effective_permissions(request, conn)
+
+        missing = [p for p in required if p not in effective_permissions]
+        if missing:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Missing required permission: {required_perm}"
+                detail=f"Missing required permissions: {', '.join(missing)}",
             )
 
         return True
 
-    return permission_checker
+    return checker

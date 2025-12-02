@@ -1,128 +1,185 @@
+# app/modules/users/service.py
+
 from uuid import UUID
-from typing import List, Optional
-from fastapi import HTTPException, status, BackgroundTasks
+from typing import List
+
+from fastapi import HTTPException, status
+
+from app.modules.users.schemas import (
+    UserCreate,
+    UserUpdate,
+    UserResponse,
+    CurrentUserResponse,
+)
 from app.modules.users.repository import UserRepository
-from app.modules.users.schemas import UserCreate, UserResponse, UserUpdate, UserContextResponse
 from app.modules.audit.repository import AuditRepository
 from app.modules.audit.schemas import AuditLogCreate
-from app.core.cache import cache
-from app.core.email import send_email
+from app.core.security import get_password_hash
 
 
 class UserService:
-    def __init__(self, repo: UserRepository, audit_repo: AuditRepository):
-        self.repo = repo
-        self.audit_repo = audit_repo
+    def __init__(self, conn):
+        self.conn = conn
+        self.user_repo = UserRepository(conn)
+        self.audit_repo = AuditRepository(conn)
 
-    async def on_board_user(self, user_data: UserCreate, background_tasks: BackgroundTasks = None,
-                            current_user_id: str = None, ip_address: str = None) -> UserResponse:
-        """
-        Creates a new user, logs the action, and triggers a welcome email asynchronously.
-        """
-        user_data.email = user_data.email.lower()
-        new_user = await self.repo.create_user(user_data)
+    # ---------------------------------------------------------
+    # CRUD
+    # ---------------------------------------------------------
+    async def list_users(self) -> List[UserResponse]:
+        # Fetch current tenant from RLS context variable set by middleware/dependency
+        tenant_id = await self.conn.fetchval(
+            "SELECT current_setting('app.current_tenant_id', true)::uuid"
+        )
+        if not tenant_id:
+            # Fallback or error if no context
+            return []
 
-        # --- Background Task: Send Email ---
-        if background_tasks:
-            subject = "Welcome to QLaws"
-            body = f"Hello {new_user.display_name}, your account has been created successfully."
-            background_tasks.add_task(send_email, subject, new_user.email, body)
+        rows = await self.user_repo.list_users_for_tenant(tenant_id)
 
-        # --- Audit Log ---
-        # FIX: Included ip_address in the log payload
-        await self.audit_repo.log_event(AuditLogCreate(
-            action_type="user.create",
-            actor_user_id=UUID(current_user_id) if current_user_id else None,
-            resource_type="user",
-            resource_id=str(new_user.user_id),
-            details={"email": new_user.email, "role": new_user.tenant_role},
-            ip_address=ip_address
-        ))
+        results = []
+        for r in rows:
+            d = dict(r)
+            # Ensure 'roles' is a list. The repo might return 'tenant_role' string.
+            if "roles" not in d:
+                # Pop tenant_role to clean up dict and use it for roles list
+                role = d.pop("tenant_role", None)
+                d["roles"] = [role] if role else []
 
-        return new_user
+            results.append(UserResponse(**d))
 
-    async def get_tenant_users(self) -> List[UserResponse]:
-        return await self.repo.get_users_by_tenant()
+        return results
 
-    async def get_by_id(self, user_id: UUID) -> UserResponse:
-        user = await self.repo.get_user_by_id(user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        return user
+    async def get_user(self, user_id: UUID) -> UserResponse:
+        # Use get_user_context to ensure we get tenant-scoped info (roles, etc.)
+        tenant_id = await self.conn.fetchval(
+            "SELECT current_setting('app.current_tenant_id', true)::uuid"
+        )
+        if not tenant_id:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tenant context missing")
 
-    async def update_user(self, user_id: UUID, data: UserUpdate, current_user_id: str = None,
-                          ip_address: str = None) -> UserResponse:
-        updated_user = await self.repo.update_user_status(
+        # Reuse get_user_context which returns a Pydantic model compatible with UserResponse
+        ctx = await self.user_repo.get_user_context(user_id, tenant_id)
+        if not ctx:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
+        # Convert UserContext to UserResponse
+        return UserResponse(
+            user_id=ctx.user_id,
+            tenant_id=ctx.tenant_id,
+            email=ctx.email,
+            display_name=ctx.display_name,
+            roles=ctx.roles,
+            permissions=ctx.permissions
+        )
+
+    async def create_user(self, payload: UserCreate) -> UserResponse:
+        # 1. Get current tenant
+        tenant_id_str = await self.conn.fetchval(
+            "SELECT current_setting('app.current_tenant_id', true)"
+        )
+        if not tenant_id_str:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tenant context missing")
+
+        # 2. Prepare payload for repo (expects dict with hashed password)
+        hashed = get_password_hash(payload.password)
+        repo_payload = {
+            "email": payload.email,
+            "display_name": payload.display_name,
+            "hashed_password": hashed,
+            "tenant_id": tenant_id_str,
+            "tenant_role": "member",  # Default role
+            "status": "active"
+        }
+
+        # 3. Create (returns dict)
+        result = await self.user_repo.create_user(repo_payload)
+        user_data = result["user"]
+        mem_data = result["membership"]
+
+        user_id = user_data["user_id"]
+        email = user_data["primary_email"]
+
+        # 4. Audit
+        await self.audit_repo.log_event(
+            AuditLogCreate(
+                action_type="user.create",
+                resource_type="user",
+                resource_id=str(user_id),
+                details={"email": email},
+            )
+        )
+
+        # 5. Return Pydantic model
+        return UserResponse(
+            user_id=user_id,
+            tenant_id=mem_data["tenant_id"],
+            email=email,
+            display_name=user_data["display_name"],
+            created_at=user_data["created_at"],
+            roles=[mem_data["tenant_role"]],
+            permissions=[]
+        )
+
+    async def update_user(self, user_id: UUID, payload: UserUpdate) -> UserResponse:
+        # Ensure user exists in this tenant
+        existing = await self.get_user(user_id)
+
+        # Update profile (repo returns dict or None)
+        updated_data = await self.user_repo.update_user_profile(
             user_id,
-            status=data.status,
-            role=data.role
+            display_name=payload.display_name
+        )
+        if not updated_data:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found or update failed")
+
+        # Audit
+        await self.audit_repo.log_event(
+            AuditLogCreate(
+                action_type="user.update",
+                resource_type="user",
+                resource_id=str(user_id),
+                details=payload.dict(exclude_unset=True),
+            )
         )
 
-        if not updated_user:
-            raise HTTPException(status_code=404, detail="User not found")
+        # Return updated state
+        # We need to re-fetch to get full context or patch the existing object
+        # Simplest is to call get_user again to ensure roles/permissions are included
+        return await self.get_user(user_id)
 
-        # FIX: Included ip_address and actor_user_id
-        await self.audit_repo.log_event(AuditLogCreate(
-            action_type="user.update",
-            actor_user_id=UUID(current_user_id) if current_user_id else None,
-            resource_type="user",
-            resource_id=str(user_id),
-            details=data.model_dump(exclude_unset=True),
-            ip_address=ip_address
-        ))
-
-        return updated_user
-
-    async def remove_user(self, user_id: UUID, current_user_id: str = None, ip_address: str = None):
-        success = await self.repo.delete_user_from_tenant(user_id)
-        if not success:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        # FIX: Included ip_address and actor_user_id
-        await self.audit_repo.log_event(AuditLogCreate(
-            action_type="user.delete",
-            actor_user_id=UUID(current_user_id) if current_user_id else None,
-            resource_type="user",
-            resource_id=str(user_id),
-            ip_address=ip_address
-        ))
-
-    async def get_me(self, user_id: str, tenant_id: str) -> UserContextResponse:
-        # ... (Logic for get_me remains unchanged) ...
-        cache_key = f"user_context:{tenant_id}:{user_id}"
-        cached_data = await cache.get(cache_key)
-
-        if cached_data:
-            return UserContextResponse(**cached_data)
-
-        raw_context = await self.repo.get_user_context(user_id, tenant_id)
-
-        if not raw_context:
-            raise HTTPException(404, "User context not found")
-
-        permissions = set(raw_context.get("permissions", []))
-        roles = set(raw_context.get("roles", []))
-
-        redirect_url = "/dashboard"
-
-        if "tenant.manage" in permissions or "Admin" in roles:
-            redirect_url = "/admin/overview"
-        elif "litigation.view" in permissions:
-            redirect_url = "/cases"
-        elif not permissions and not roles:
-            redirect_url = "/onboarding/welcome"
-
-        response = UserContextResponse(
-            user_id=raw_context['user_id'],
-            email=raw_context['primary_email'],
-            display_name=raw_context['display_name'],
-            tenant_id=raw_context['tenant_id'],
-            tenant_name=raw_context['tenant_name'],
-            roles=list(roles),
-            permissions=list(permissions),
-            redirect_url=redirect_url
+    async def deactivate_user(self, user_id: UUID, tenant_id: UUID):
+        await self.user_repo.deactivate_user_in_tenant(user_id, tenant_id)
+        await self.audit_repo.log_event(
+            AuditLogCreate(
+                action_type="user.deactivate",
+                resource_type="user",
+                resource_id=str(user_id),
+                details={"tenant_id": str(tenant_id)},
+            )
         )
 
-        await cache.set(cache_key, response.model_dump(mode='json'), expire=60)
+    # ---------------------------------------------------------
+    # CURRENT USER CONTEXT
+    # ---------------------------------------------------------
+    async def get_current_user_profile(self, user_id: UUID, tenant_id: UUID) -> CurrentUserResponse:
+        ctx = await self.user_repo.get_user_context(user_id, tenant_id)
+        if not ctx:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "User context not found")
 
-        return response
+        redirect_url = self._compute_redirect_url(ctx.permissions)
+
+        return CurrentUserResponse(
+            **ctx.dict(),
+            redirect_url=redirect_url,
+        )
+
+    def _compute_redirect_url(self, permissions: list[str]) -> str:
+        """
+        Simple redirect logic based on permissions.
+        """
+        if "tenant.manage" in permissions:
+            return "/admin/overview"
+        if "user.read" in permissions:
+            return "/users"
+        return "/dashboard"

@@ -1,46 +1,68 @@
-from asyncpg import Connection
-from typing import Optional
+# app/modules/tenants/repository.py
+
+from typing import Optional, List
 from uuid import UUID
-from uuid import uuid4
-import json
+from asyncpg import Connection
+
 from app.modules.tenants.schemas import TenantCreate, TenantResponse
 
 
 class TenantRepository:
+    """
+    Low-level data access for tenants.
+    Relies on RLS at the database level for isolation when tenant_id is set.
+    """
+
     def __init__(self, conn: Connection):
         self.conn = conn
 
-    async def create(self, tenant: TenantCreate) -> TenantResponse:
-        # 1. Generate ID in Python first so we know it ahead of time
-        new_id = uuid4()
-
-        # 2. CRITICAL FIX: Set the RLS context *before* inserting.
-        # The 'RETURNING' clause in the INSERT statement internally performs a SELECT.
-        # If we don't set the context to match the new ID, the RLS SELECT policy
-        # will hide the new row from us, causing a "row-level security policy violation" error.
-        # 'true' as the 3rd arg makes this setting local to the transaction.
-        await self.conn.execute(
-            "SELECT set_config('app.current_tenant_id', $1, true)",
-            str(new_id)
-        )
-
-        query = """
-            INSERT INTO tenants (tenant_id, name, domain, plan, region, config, status)
-            VALUES ($1, $2, $3, $4, $5, $6, 'active')
-            RETURNING tenant_id, name, status, created_at;
+    async def create(self, payload: TenantCreate) -> TenantResponse:
         """
-
+        Inserts a new tenant row. Domain is stored in lowercase.
+        Status defaults to 'active'.
+        """
         row = await self.conn.fetchrow(
-            query,
-            new_id,
-            tenant.name,
-            tenant.domain,
-            tenant.plan,
-            tenant.region,
-            json.dumps(tenant.config)
+            """
+            INSERT INTO tenants (name, domain, plan, region, status)
+            VALUES ($1, lower($2), $3, COALESCE($4, 'us-east-1'), 'active')
+            RETURNING tenant_id, name, domain, plan, region, status, created_at
+            """,
+            payload.name,
+            payload.domain,
+            payload.plan,
+            payload.region,
         )
-        return TenantResponse(**dict(row))
 
-    async def get_by_domain(self, domain: str) -> Optional[UUID]:
-        query = "SELECT tenant_id FROM tenants WHERE domain = $1"
-        return await self.conn.fetchval(query, domain)
+        return TenantResponse(**row)
+
+    async def get_by_id(self, tenant_id: UUID) -> Optional[TenantResponse]:
+        row = await self.conn.fetchrow(
+            """
+            SELECT tenant_id, name, domain, plan, region, status, created_at
+            FROM tenants
+            WHERE tenant_id = $1
+            """,
+            tenant_id,
+        )
+        return TenantResponse(**row) if row else None
+
+    async def get_by_domain(self, domain: str) -> Optional[TenantResponse]:
+        row = await self.conn.fetchrow(
+            """
+            SELECT tenant_id, name, domain, plan, region, status, created_at
+            FROM tenants
+            WHERE domain = lower($1)
+            """,
+            domain,
+        )
+        return TenantResponse(**row) if row else None
+
+    async def list_tenants(self) -> List[TenantResponse]:
+        rows = await self.conn.fetch(
+            """
+            SELECT tenant_id, name, domain, plan, region, status, created_at
+            FROM tenants
+            ORDER BY created_at DESC
+            """
+        )
+        return [TenantResponse(**r) for r in rows]

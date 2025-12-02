@@ -9,6 +9,10 @@ python3.11.9 -m venv .venv
 source .venv/bin/activate
 
 #check environment
+pip install slowapi 
+pip install pytest
+pip install redis
+
 
 #Install New Libraries - SMTP, Rate Limiting, and Redis.
 pip install aiosmtplib slowapi redis httpx
@@ -17,7 +21,7 @@ pip install cryptography pyotp pytest-asyncio
 pip install "bcrypt==4.0.1"
 pip install asyncpg fastapi
 pip install slowapi redis
-pip install pytest
+
 
 chmod 777 entrypoint.sh
 

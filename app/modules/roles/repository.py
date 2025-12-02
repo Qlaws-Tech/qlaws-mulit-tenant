@@ -1,93 +1,236 @@
-from asyncpg import Connection
+# app/modules/roles/repository.py
+
 from typing import List, Optional
 from uuid import UUID
+
+import asyncpg
+from asyncpg import Connection
+
 from app.modules.roles.schemas import RoleCreate, RoleUpdate, RoleResponse
 
+
 class RoleRepository:
+    """
+    Tenant-scoped Role repository.
+
+    Relies on:
+        - RLS using current_setting('app.current_tenant_id')
+        - Enterprise schema: roles, role_permissions, permissions, tenants
+    """
+
     def __init__(self, conn: Connection):
         self.conn = conn
 
-    async def create_role(self, role: RoleCreate) -> RoleResponse:
-        # 1. Insert Role
-        # FIX: We explicitly insert 'tenant_id' using the current session variable
-        # casting it to ::uuid to match the column type.
-        role_query = """
-            INSERT INTO roles (name, description, is_builtin, tenant_id)
-            VALUES ($1, $2, false, current_setting('app.current_tenant_id')::uuid)
-            RETURNING role_id, name, description, is_builtin, created_at;
+    # ---------------------------------------------------------
+    # CREATE
+    # ---------------------------------------------------------
+    async def create_role(self, payload: RoleCreate) -> RoleResponse:
         """
-        row = await self.conn.fetchrow(role_query, role.name, role.description)
-        role_id = row['role_id']
+        Inserts a new role for current tenant and links permissions.
+        """
+        async with self.conn.transaction():
+            row = await self.conn.fetchrow(
+                """
+                INSERT INTO roles (tenant_id, name, description)
+                VALUES (
+                    current_setting('app.current_tenant_id', true)::uuid,
+                    $1,
+                    $2
+                )
+                RETURNING role_id, name, description, created_at
+                """,
+                payload.name,
+                payload.description,
+            )
 
-        # 2. Assign Permissions (if any)
-        perm_keys = []
-        if role.permission_keys:
-            # Bulk insert into role_permissions
-            # The RLS on role_permissions checks if the parent 'role_id' belongs to the tenant.
-            # Since we just successfully inserted the role above, this will pass.
-            await self.conn.execute("""
-                INSERT INTO role_permissions (role_id, permission_id)
-                SELECT $1, p.permission_id
-                FROM permissions p
-                WHERE p.key = ANY($2::text[])
-            """, role_id, role.permission_keys)
-            perm_keys = role.permission_keys
+            if payload.permission_keys:
+                await self._set_role_permissions(
+                    row["role_id"],
+                    payload.permission_keys,
+                )
 
-        return RoleResponse(**dict(row), permissions=perm_keys)
+        return await self.get_role(row["role_id"])
+
+    # ---------------------------------------------------------
+    # READ
+    # ---------------------------------------------------------
+    async def get_role(self, role_id: UUID) -> Optional[RoleResponse]:
+        row = await self.conn.fetchrow(
+            """
+            SELECT
+                r.role_id,
+                r.name,
+                r.description,
+                r.created_at,
+                COALESCE(
+                    ARRAY_AGG(DISTINCT p.key) FILTER (WHERE p.key IS NOT NULL),
+                    '{}'
+                ) AS permissions
+            FROM roles r
+            LEFT JOIN role_permissions rp ON rp.role_id = r.role_id
+            LEFT JOIN permissions p ON p.permission_id = rp.permission_id
+            WHERE r.role_id = $1
+            GROUP BY r.role_id, r.name, r.description, r.created_at
+            """,
+            role_id,
+        )
+        return RoleResponse(**row) if row else None
 
     async def get_roles(self) -> List[RoleResponse]:
-        # RLS filters this automatically!
-        query = """
-            SELECT r.role_id, r.name, r.description, r.is_builtin, r.created_at,
-                   array_remove(array_agg(p.key), NULL) as permissions
+        rows = await self.conn.fetch(
+            """
+            SELECT
+                r.role_id,
+                r.name,
+                r.description,
+                r.created_at,
+                COALESCE(
+                    ARRAY_AGG(DISTINCT p.key) FILTER (WHERE p.key IS NOT NULL),
+                    '{}'
+                ) AS permissions
             FROM roles r
-            LEFT JOIN role_permissions rp ON r.role_id = rp.role_id
-            LEFT JOIN permissions p ON rp.permission_id = p.permission_id
-            GROUP BY r.role_id
+            LEFT JOIN role_permissions rp ON rp.role_id = r.role_id
+            LEFT JOIN permissions p ON p.permission_id = rp.permission_id
+            GROUP BY r.role_id, r.name, r.description, r.created_at
+            ORDER BY r.created_at DESC
+            """
+        )
+        return [RoleResponse(**r) for r in rows]
+
+    # ---------------------------------------------------------
+    # UPDATE
+    # ---------------------------------------------------------
+    async def update_role(self, role_id: UUID, payload: RoleUpdate) -> RoleResponse:
+        async with self.conn.transaction():
+            if payload.name is not None:
+                await self.conn.execute(
+                    """
+                    UPDATE roles
+                    SET name = $2
+                    WHERE role_id = $1
+                    """,
+                    role_id,
+                    payload.name,
+                )
+
+            if payload.description is not None:
+                await self.conn.execute(
+                    """
+                    UPDATE roles
+                    SET description = $2
+                    WHERE role_id = $1
+                    """,
+                    role_id,
+                    payload.description,
+                )
+
+            if payload.permission_keys is not None:
+                await self._set_role_permissions(role_id, payload.permission_keys)
+
+        updated = await self.get_role(role_id)
+        return updated
+
+    # ---------------------------------------------------------
+    # DELETE
+    # ---------------------------------------------------------
+    async def delete_role(self, role_id: UUID):
+        await self.conn.execute(
+            "DELETE FROM roles WHERE role_id = $1",
+            role_id,
+        )
+
+    # ---------------------------------------------------------
+    # PERMISSIONS HELPER
+    # ---------------------------------------------------------
+    async def _set_role_permissions(self, role_id: UUID, permission_keys: list[str]):
+        # Clear existing
+        await self.conn.execute(
+            "DELETE FROM role_permissions WHERE role_id = $1",
+            role_id,
+        )
+
+        # Handle wildcard: "*" = all permissions
+        if permission_keys == ["*"]:
+            # Fetch all permissions (or subset, if ever extended)
+            all_perms = await self._fetch_permissions_for_keys(permission_keys)
+            # Normalize to list of keys (strings)
+            permission_keys = [p["key"] for p in all_perms]
+
+        if not permission_keys:
+            return
+
+        # Ensure permissions exist
+        rows = await self.conn.fetch(
+            """
+            SELECT permission_id, key
+            FROM permissions
+            WHERE key = ANY ($1::text[])
+            """,
+            permission_keys,
+        )
+        existing = {r["key"]: r["permission_id"] for r in rows}
+
+        missing = [k for k in permission_keys if k not in existing]
+        if missing:
+            # Auto-create missing permissions with null description
+            perms = await self.conn.fetch(
+                """
+                INSERT INTO permissions (key)
+                SELECT unnest($1::text[])
+                ON CONFLICT (key) DO UPDATE SET key = EXCLUDED.key
+                RETURNING permission_id, key
+                """,
+                missing,
+            )
+            for r in perms:
+                existing[r["key"]] = r["permission_id"]
+
+        # Link to role
+        tenant_id_row = await self.conn.fetchrow(
+            "SELECT current_setting('app.current_tenant_id', true) AS tid"
+        )
+        tenant_id = tenant_id_row["tid"]
+
+        inserts = [
+            (role_id, existing[key], tenant_id)
+            for key in permission_keys
+        ]
+        await self.conn.executemany(
+            """
+            INSERT INTO role_permissions (role_id, permission_id, tenant_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING
+            """,
+            inserts,
+        )
+
+    async def _fetch_permissions_for_keys(
+        self, permission_keys: List[str]
+    ) -> List[asyncpg.Record]:
         """
-        rows = await self.conn.fetch(query)
-        return [RoleResponse(**dict(row)) for row in rows]
-
-    async def update_role(self, role_id: UUID, update: RoleUpdate) -> Optional[RoleResponse]:
-        # 1. Update basic fields if provided
-        if update.name or update.description:
-            await self.conn.execute("""
-                UPDATE roles 
-                SET name = COALESCE($2, name),
-                    description = COALESCE($3, description)
-                WHERE role_id = $1
-            """, role_id, update.name, update.description)
-
-        # 2. Update Permissions (Full Replacement Strategy)
-        if update.permission_keys is not None:
-            # Remove old
-            await self.conn.execute("DELETE FROM role_permissions WHERE role_id = $1", role_id)
-            # Add new
-            if update.permission_keys:
-                await self.conn.execute("""
-                    INSERT INTO role_permissions (role_id, permission_id)
-                    SELECT $1, p.permission_id
-                    FROM permissions p
-                    WHERE p.key = ANY($2::text[])
-                """, role_id, update.permission_keys)
-
-        # 3. Fetch updated state
-        return await self._get_single_role(role_id)
-
-    async def delete_role(self, role_id: UUID) -> bool:
-        # RLS prevents deleting other tenant's roles
-        result = await self.conn.execute("DELETE FROM roles WHERE role_id = $1 AND is_builtin = false", role_id)
-        return "DELETE 0" not in result
-
-    async def _get_single_role(self, role_id: UUID) -> Optional[RoleResponse]:
-        query = """
-            SELECT r.role_id, r.name, r.description, r.is_builtin, r.created_at,
-                   array_remove(array_agg(p.key), NULL) as permissions
-            FROM roles r
-            LEFT JOIN role_permissions rp ON r.role_id = rp.role_id
-            LEFT JOIN permissions p ON rp.permission_id = p.permission_id
-            WHERE r.role_id = $1
-            GROUP BY r.role_id
+        If permission_keys contains '*', return *all* permissions.
+        Otherwise return only those whose key is in permission_keys.
         """
-        row = await self.conn.fetchrow(query, role_id)
-        return RoleResponse(**dict(row)) if row else None
+        if not permission_keys:
+            return []
+
+        # If wildcard present → all permissions
+        if "*" in permission_keys:
+            return await self.conn.fetch(
+                """
+                SELECT permission_id, key
+                FROM permissions
+                ORDER BY key
+                """
+            )
+
+        # Otherwise fetch only requested ones
+        return await self.conn.fetch(
+            """
+            SELECT permission_id, key
+            FROM permissions
+            WHERE key = ANY($1::text[])
+            ORDER BY key
+            """,
+            permission_keys,
+        )

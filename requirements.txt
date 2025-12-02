@@ -36,3 +36,9 @@ httpx>=0.25.0
 pytest-mock>=3.11.0
 # For checking test coverage
 pytest-cov>=4.1.0
+
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
+
+jose
+jwt

@@ -1,31 +1,65 @@
-from fastapi import APIRouter, Depends, status
-from uuid import UUID
+# app/modules/api_keys/router.py
+
 from typing import List
-from app.dependencies.rls import get_tenant_db_connection
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, status
+
+from app.dependencies.database import get_tenant_db_connection
+from app.dependencies.permissions import require_permissions
+from app.modules.api_keys.schemas import (
+    ApiKeyCreate,
+    ApiKeyResponse,
+    ApiKeyWithPlain,
+)
 from app.modules.api_keys.repository import ApiKeyRepository
 from app.modules.api_keys.service import ApiKeyService
-from app.modules.api_keys.schemas import ApiKeyCreate, ApiKeyCreatedResponse, ApiKeyResponse
+from app.modules.audit.repository import AuditRepository
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/api-keys",
+    tags=["API Keys"],
+)
 
-async def get_apikey_service(conn = Depends(get_tenant_db_connection)):
-    return ApiKeyService(ApiKeyRepository(conn))
 
-@router.post("/", response_model=ApiKeyCreatedResponse, status_code=201)
+def get_api_key_service(conn=Depends(get_tenant_db_connection)) -> ApiKeyService:
+    repo = ApiKeyRepository(conn)
+    audit = AuditRepository(conn)
+    return ApiKeyService(repo, audit)
+
+
+@router.post(
+    "/",
+    response_model=ApiKeyWithPlain,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_permissions(["api_key.manage"]))],
+)
 async def create_api_key(
-    data: ApiKeyCreate,
-    service: ApiKeyService = Depends(get_apikey_service)
+    body: ApiKeyCreate,
+    service: ApiKeyService = Depends(get_api_key_service),
 ):
-    """Create a new API Key. Returns the secret key ONLY once."""
-    return await service.create_api_key(data)
+    return await service.create_api_key(body)
 
-@router.get("/", response_model=List[ApiKeyResponse])
-async def list_api_keys(service: ApiKeyService = Depends(get_apikey_service)):
+
+@router.get(
+    "/",
+    response_model=List[ApiKeyResponse],
+    dependencies=[Depends(require_permissions(["api_key.manage"]))],
+)
+async def list_api_keys(
+    service: ApiKeyService = Depends(get_api_key_service),
+):
     return await service.list_keys()
 
-@router.delete("/{key_id}", status_code=204)
-async def revoke_api_key(
-    key_id: UUID,
-    service: ApiKeyService = Depends(get_apikey_service)
+
+@router.delete(
+    "/{api_key_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_permissions(["api_key.manage"]))],
+)
+async def delete_api_key(
+    api_key_id: UUID,
+    service: ApiKeyService = Depends(get_api_key_service),
 ):
-    await service.revoke_key(key_id)
+    await service.delete_key(api_key_id)
+    return None

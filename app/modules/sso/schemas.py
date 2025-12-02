@@ -1,27 +1,45 @@
-from pydantic import BaseModel, UUID4, Field
-from typing import Dict, Any, Optional
+# app/modules/sso/schemas.py
+
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
+from uuid import UUID
 from datetime import datetime
 
-class SSOConfig(BaseModel):
+
+class SSOProviderConfig(BaseModel):
+    # For OIDC – you can extend this for SAML later
     client_id: str
-    client_secret: str  # <--- Sensitive! Must be encrypted.
+    client_secret: str
     issuer_url: str
+    # extra fields are allowed for future providers
+    extra: Dict[str, Any] = Field(default_factory=dict)
 
-class SsoProviderCreate(BaseModel):
-    provider_type: str = Field(..., pattern="^(oidc|saml)$")
-    name: str
-    config: SSOConfig   # Nested JSON structure
-    is_default: bool = False
 
-class SsoProviderResponse(BaseModel):
-    sso_id: UUID4
+class SSOProviderCreate(BaseModel):
+    # changed: regex -> pattern for Pydantic v2
+    provider_type: str = Field(
+        ...,
+        description="oidc or saml",
+        pattern="^(oidc|saml)$",
+    )
     name: str
-    provider_type: str
-    # We generally DO NOT return the full config (especially secret)
-    # in list views for security, but will include it here for testing.
+    description: Optional[str] = None
+    enabled: bool = True
     config: Dict[str, Any]
-    enabled: bool
-    created_at: datetime
 
-    class Config:
-        from_attributes = True
+
+class SSOProviderUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    enabled: Optional[bool] = None
+    config: Optional[Dict[str, Any]] = None
+
+
+class SSOProviderResponse(BaseModel):
+    sso_provider_id: UUID
+    provider_type: str
+    name: str
+    description: Optional[str]
+    enabled: bool
+    config: Dict[str, Any]
+    created_at: datetime

@@ -5,9 +5,10 @@ services:
     image: postgres:16-alpine
     container_name: postgres_multi_tenant
     environment:
-      POSTGRES_DB: authz_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      # These MUST match your .env file
+      POSTGRES_DB: qlaws_db
+      POSTGRES_USER: qlaws_app
+      POSTGRES_PASSWORD: app_password
     ports:
       - "5432:5432"
     volumes:
@@ -23,7 +24,7 @@ services:
     ports:
       - "5050:80"
     depends_on:
-      - postgres          # <-- service name, not container_name
+      - postgres
     restart: unless-stopped
 
   redis-cache:
@@ -35,7 +36,6 @@ services:
       - "6379:6379"
     restart: unless-stopped
 
-    # Redis Commander UI for Redis
   redis-commander:
       image: rediscommander/redis-commander:latest
       container_name: redis-commander-ui

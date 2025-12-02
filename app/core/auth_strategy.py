@@ -1,7 +1,7 @@
 import httpx
 from jose import jwt
 from fastapi import HTTPException, status
-from config_dev import settings
+from app.core.config import settings
 
 
 class TokenVerifier:

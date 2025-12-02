@@ -1,71 +1,82 @@
-from asyncpg import Connection
-from datetime import datetime
+# app/modules/api_keys/repository.py
+
+from typing import List, Optional
 from uuid import UUID
-from typing import List
-from app.modules.api_keys.schemas import ApiKeyResponse
+
+from asyncpg import Connection
+
+from app.modules.api_keys.schemas import ApiKeyResponse, ApiKeyInfo
+
 
 class ApiKeyRepository:
+    """
+    Tenant-scoped API key repository.
+
+    Table: api_keys
+      - api_key_id UUID
+      - tenant_id UUID
+      - name TEXT
+      - hashed_key TEXT
+      - scopes TEXT[]
+      - created_at TIMESTAMPTZ
+    """
+
     def __init__(self, conn: Connection):
         self.conn = conn
 
-    async def create(self, name: str, key_hash: str, prefix: str, scopes: list, expires_at: datetime) -> dict:
-        """
-        Inserts the hashed key.
-        """
-        query = """
+    async def create(
+        self,
+        name: str,
+        hashed_key: str,
+        scopes: list[str],
+    ) -> ApiKeyResponse:
+        row = await self.conn.fetchrow(
+            """
             INSERT INTO api_keys (
-                tenant_id, 
-                name, 
-                key_hash, 
-                prefix, 
-                scopes, 
-                expires_at,
-                created_at
+                api_key_id,
+                tenant_id,
+                name,
+                hashed_key,
+                scopes
             )
             VALUES (
-                current_setting('app.current_tenant_id')::uuid, 
-                $1, $2, $3, $4, $5, now()
+                uuid_generate_v4(),
+                current_setting('app.current_tenant_id', true)::uuid,
+                $1,
+                $2,
+                $3::text[]
             )
-            RETURNING api_key_id, name, prefix, scopes, last_used_at, expires_at, created_at
-        """
-        row = await self.conn.fetchrow(query, name, key_hash, prefix, scopes, expires_at)
-        return dict(row)
+            RETURNING api_key_id, name, scopes, created_at
+            """,
+            name,
+            hashed_key,
+            scopes,
+        )
+        return ApiKeyResponse(**row)
 
     async def list_keys(self) -> List[ApiKeyResponse]:
-        query = """
-            SELECT api_key_id, name, prefix, scopes, last_used_at, expires_at, created_at
+        rows = await self.conn.fetch(
+            """
+            SELECT api_key_id, name, scopes, created_at
             FROM api_keys
-            WHERE revoked = false
             ORDER BY created_at DESC
-        """
-        rows = await self.conn.fetch(query)
-        return [ApiKeyResponse(**dict(row)) for row in rows]
+            """
+        )
+        return [ApiKeyResponse(**r) for r in rows]
 
-    async def revoke(self, api_key_id: UUID):
-        """Soft deletes the key."""
+    async def delete(self, api_key_id: UUID) -> None:
         await self.conn.execute(
-            "UPDATE api_keys SET revoked = true WHERE api_key_id = $1",
-            api_key_id
+            "DELETE FROM api_keys WHERE api_key_id = $1",
+            api_key_id,
         )
 
-    async def get_key_by_prefix(self, prefix: str):
-        """
-        Used for Authentication.
-        Fetches the hash based on the prefix (optimization to avoid checking every row).
-        Note: This query likely runs WITHOUT RLS context initially (system lookup),
-        or we must pass tenant_id if we know it.
-        """
-        # In a secure design, we look up by prefix globally, verify hash,
-        # THEN enforce tenant context.
-        query = """
-            SELECT api_key_id, tenant_id, key_hash, scopes, expires_at, revoked
+    async def get_by_hashed_key(self, hashed_key: str) -> Optional[ApiKeyInfo]:
+        row = await self.conn.fetchrow(
+            """
+            SELECT api_key_id, tenant_id, scopes
             FROM api_keys
-            WHERE prefix = $1
-        """
-        return await self.conn.fetchrow(query, prefix)
-
-    async def update_last_used(self, api_key_id: UUID):
-        await self.conn.execute(
-            "UPDATE api_keys SET last_used_at = now() WHERE api_key_id = $1",
-            api_key_id
+            WHERE hashed_key = $1
+            """,
+            hashed_key,
         )
+        return ApiKeyInfo(**row) if row else None

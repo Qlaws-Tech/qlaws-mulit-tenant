@@ -1,57 +1,68 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from asyncpg import Connection
-from app.dependencies.database import get_db_connection
-from app.modules.auth.repository import AuthRepository
-from app.core.auth_strategy import TokenVerifier
+# app/dependencies/rls.py
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+from uuid import UUID
+from fastapi import Request, HTTPException, status
+from jose import jwt, JWTError
+
+from app.core.config import settings
 
 
-async def get_tenant_db_connection(
-        token: str = Depends(oauth2_scheme),
-        conn: Connection = Depends(get_db_connection)
-) -> Connection:
+async def tenant_context_middleware(request: Request, call_next):
     """
-    1. Verifies Token (Local or External based on Config).
-    2. Checks Local Blacklist (Only applies if JTI is present).
-    3. Sets RLS Context.
+    Best-effort middleware to populate request.state.tenant_id.
+
+    Priority:
+    1) X-Tenant-ID header (explicit override)
+    2) JWT 'tid' claim (for authenticated calls)
+
+    Also ensures that if BOTH header and token have a tenant,
+    they do not conflict.
     """
-    # 1. Verify Token (Strategy Pattern)
-    # This handles HS256 (Local) vs RS256 (Auth0/Okta) logic transparently via config
-    payload = await TokenVerifier.verify(token)
 
-    tenant_id = payload.get("tid")
-    jti = payload.get("jti")
+    header_tid: UUID | None = None
+    token_tid: UUID | None = None
 
-    if not tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token is valid but missing Tenant ID (tid) context",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    # 1) X-Tenant-ID header
+    tenant_header = request.headers.get("X-Tenant-ID")
+    if tenant_header:
+        try:
+            header_tid = UUID(tenant_header)
+            request.state.tenant_id = header_tid
+        except ValueError:
+            # Ignore invalid UUID in header
+            pass
 
-    # 2. Check Blacklist (Optional for External, Mandatory for Local)
-    # Only check if the token has a JTI (Local tokens always do).
-    # External providers manage their own revocation, but we can blacklist specific JTI if needed.
-    if jti:
-        auth_repo = AuthRepository(conn)
-        if await auth_repo.is_token_revoked(jti):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked",
-                headers={"WWW-Authenticate": "Bearer"},
+    # 2) JWT 'tid' claim
+    auth = request.headers.get("Authorization")
+    if auth and auth.startswith("Bearer "):
+        token = auth.split(" ", 1)[1].strip()
+        try:
+            payload = jwt.decode(
+                token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
             )
+            tid = payload.get("tid")
+            if tid:
+                try:
+                    token_tid = UUID(tid)
+                except ValueError:
+                    token_tid = None
 
-    # 3. Set RLS Context
-    try:
-        await conn.execute(
-            "SELECT set_config('app.current_tenant_id', $1, true)",
-            str(tenant_id)
+                # If we didn't already set tenant_id from header, use token
+                if not hasattr(request.state, "tenant_id"):
+                    request.state.tenant_id = token_tid
+
+        except (JWTError, ValueError):
+            # Ignore; some endpoints are public (e.g. invitation accept, password reset)
+            pass
+
+    # 3) If both header and token tenant IDs exist and conflict → error
+    if header_tid and token_tid and header_tid != token_tid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant mismatch: header and token differ",
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"RLS Context Error: {str(e)}")
 
-    # Yield OUTSIDE the try block so application errors (e.g. 404, Validation)
-    # don't get caught as RLS errors.
-    yield conn
+    response = await call_next(request)
+    return response

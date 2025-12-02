@@ -1,32 +1,33 @@
+# app/dependencies/database.py
+
+from fastapi import Depends, HTTPException, status
 from typing import AsyncGenerator
-from asyncpg import Connection
-from fastapi import HTTPException, status
 from app.core.database import db
+from app.dependencies.auth_utils import get_current_token_payload
 
 
-async def get_db_connection() -> AsyncGenerator[Connection, None]:
+async def get_db_connection() -> AsyncGenerator:
     """
-    Yields a raw database connection from the pool.
-
-    WARNING: This connection does NOT have RLS policies applied yet.
-    Use this dependency for:
-    1. Tenant Onboarding (creation)
-    2. Authentication (login/lookup)
-    3. System-level background tasks
+    System-level connection WITHOUT tenant RLS context.
+    Used for health checks, system endpoints, etc.
     """
-    if not db.pool:
+    # Use a special tenant (or no RLS enforcement) as designed in your DB.
+    async for conn in db.get_connection("00000000-0000-0000-0000-000000000000"):
+        yield conn
+
+
+async def get_tenant_db_connection(
+    token_payload: dict = Depends(get_current_token_payload),
+) -> AsyncGenerator:
+    """
+    Tenant-scoped connection WITH RLS context based on token's tid.
+    """
+    tenant_id = token_payload.get("tid")
+    if not tenant_id:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database not initialized"
+            status.HTTP_400_BAD_REQUEST,
+            "Tenant ID missing in token",
         )
 
-    async with db.pool.acquire() as connection:
-        # Start a transaction for every request to ensure atomicity
-        async with connection.transaction():
-            try:
-                yield connection
-            except Exception as e:
-                # The transaction context manager handles rollback on error,
-                # but we log it here for visibility.
-                print(f"Database error: {e}")
-                raise e
+    async for conn in db.get_connection(tenant_id):
+        yield conn

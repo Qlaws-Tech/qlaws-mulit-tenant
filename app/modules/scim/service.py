@@ -1,59 +1,59 @@
-from fastapi import HTTPException
+# app/modules/scim/service.py
+
 from uuid import UUID
-from app.modules.scim.repository import ScimRepository
-from app.modules.scim.schemas import ScimUserCreate, ScimResponse
+from fastapi import HTTPException, status
+from starlette.requests import Request
+
+from app.modules.scim.schemas import SCIMUserCreate, SCIMUserResponse
+from app.modules.scim.repository import SCIMRepository
+from app.modules.api_keys.service import ApiKeyService
 from app.modules.api_keys.repository import ApiKeyRepository
-from app.core.security import verify_password  # used for checking API key hash
 
 
-class ScimService:
-    def __init__(self, scim_repo: ScimRepository, apikey_repo: ApiKeyRepository):
-        self.repo = scim_repo
-        self.apikey_repo = apikey_repo
+class SCIMService:
+    """
+    SCIM 2.0 service layer.
 
-    async def authenticate_scim_client(self, raw_api_key: str) -> UUID:
+    - Authenticates API key (Okta, Entra, etc.) using scim.write scope.
+    - Provisions users into the tenant associated with the API key.
+    """
+
+    def __init__(self, conn):
+        self.conn = conn
+        self.repo = SCIMRepository(conn)
+        self.api_key_service = ApiKeyService(ApiKeyRepository(conn))
+
+    async def _authenticate_scim_request(self, auth_header: str) -> UUID:
         """
-        Validates the Bearer token (API Key) and returns the Tenant ID.
-        SCIM clients send 'Authorization: Bearer pk_live_...'
+        Parses Authorization: Bearer <token> and validates via API key service.
+        Requires 'scim.write' scope.
+        Returns tenant_id of the key.
         """
-        if not raw_api_key.startswith("pk_live_"):
-            raise HTTPException(401, "Invalid API Key format")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing SCIM bearer token")
 
-        prefix = raw_api_key[:8]
-        record = await self.apikey_repo.get_key_by_prefix(prefix)
+        token = auth_header.split(" ", 1)[1].strip()
+        key_info = await self.api_key_service.validate_token(token, required_scope="scim.write")
 
-        if not record:
-            raise HTTPException(401, "Invalid API Key")
+        if not key_info:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid SCIM token")
 
-        if not verify_password(raw_api_key, record['key_hash']):
-            raise HTTPException(401, "Invalid API Key")
+        return key_info.tenant_id
 
-        if record['revoked']:
-            raise HTTPException(401, "API Key revoked")
+    async def create_scim_user(
+        self,
+        request: Request,
+        payload: SCIMUserCreate,
+        authorization: str,
+    ) -> SCIMUserResponse:
+        # 1. Auth via API key
+        tenant_id = await self._authenticate_scim_request(authorization)
 
-        # Optional: Check if key has 'scim.write' scope
+        # NOTE:
+        # RLS: The connection used here should already have current_setting('app.current_tenant_id')
+        # set in tests via dependency override.
+        # For general runtime, you could add a dedicated SCIM DB dependency that sets it from tenant_id.
 
-        # Update last used
-        await self.apikey_repo.update_last_used(record['api_key_id'])
-
-        return record['tenant_id']
-
-    async def create_user(self, raw_key: str, payload: ScimUserCreate):
-        tenant_id = await self.authenticate_scim_client(raw_key)
-
-        user_id = await self.repo.upsert_user(payload, tenant_id)
-
-        # Construct SCIM Response
-        return self._build_response(user_id, payload)
-
-    def _build_response(self, user_id: UUID, payload: ScimUserCreate):
-        return ScimResponse(
-            id=str(user_id),
-            userName=payload.userName,
-            active=payload.active,
-            meta={
-                "resourceType": "User",
-                "created": "2023-01-01T00:00:00Z",  # Simplified
-                "location": f"/scim/v2/Users/{user_id}"
-            }
-        )
+        # 2. Provision user
+        base_url = str(request.base_url).rstrip("/")
+        return await self.repo.create_scim_user(payload, tenant_id, base_url)

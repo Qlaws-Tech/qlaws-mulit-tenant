@@ -4,18 +4,98 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8b8699e3-02fa-4430-b157-71986000358d" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/multi-tenant.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/qlaws-mulit-tenant.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+    <list default="true" id="8b8699e3-02fa-4430-b157-71986000358d" name="Changes" comment="Add changes for Multi tenant">
+      <change afterPath="$PROJECT_DIR$/insert_query.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README_PROD.md" beforeDir="false" afterPath="$PROJECT_DIR$/README_PROD.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/auth_strategy.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/auth_strategy.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/cache.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/cache.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/database.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/email.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/email.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/encryption.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/encryption.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/exceptions.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/exceptions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/limiter.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/limiter.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/security.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/security.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/dependencies/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/dependencies/database.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/dependencies/permissions.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/dependencies/permissions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/dependencies/rls.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/dependencies/rls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/api_keys/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/api_keys/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/api_keys/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/api_keys/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/api_keys/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/api_keys/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/api_keys/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/api_keys/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/audit/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/audit/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/audit/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/audit/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/audit/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/audit/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/audit/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/audit/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/auth/mfa/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/auth/mfa/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/auth/mfa/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/auth/mfa/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/auth/mfa/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/auth/mfa/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/auth/mfa/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/auth/mfa/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/auth/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/auth/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/auth/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/auth/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/auth/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/auth/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/auth/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/auth/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/groups/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/groups/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/groups/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/groups/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/groups/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/groups/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/groups/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/groups/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/roles/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/roles/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/roles/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/roles/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/roles/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/roles/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/roles/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/roles/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/scim/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/scim/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/scim/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/scim/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/scim/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/scim/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/scim/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/scim/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/sso/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/sso/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/sso/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/sso/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/sso/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/sso/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/sso/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/sso/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/system/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/system/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/system/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/system/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/system/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/system/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/system/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/system/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/tenants/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/tenants/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/tenants/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/tenants/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/tenants/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/tenants/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/tenants/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/tenants/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/users/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/users/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/users/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/users/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/users/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/users/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/users/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/users/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/authz_db_schema.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config_dev.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config_prod.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pytest.ini" beforeDir="false" afterPath="$PROJECT_DIR$/pytest.ini" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/seed_db.py" beforeDir="false" afterPath="$PROJECT_DIR$/seed_db.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/conftest.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/e2e/test_tenant_api.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/e2e/test_tenant_api.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/integration/test_api_keys.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/integration/test_api_keys.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/integration/test_rls_enforcement.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/integration/test_rls_enforcement.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/integration/test_scim_provisioning.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/integration/test_scim_provisioning.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/integration/test_sso_encryption.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/integration/test_sso_encryption.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/integration/test_startup_health.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/integration/test_startup_health.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/integration/test_user_context.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/integration/test_user_context.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/unit/test_tenant_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/unit/test_tenant_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/yoyo.ini" beforeDir="false" afterPath="$PROJECT_DIR$/yoyo.ini" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="PUSH_TAGS">
@@ -26,21 +106,21 @@
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "nitinnedate"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;nitinnedate&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/Qlaws-Tech/qlaws-mulit-tenant.git",
-    "accountId": "599f5adf-4964-4ec6-950e-09a1d39bd57c"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Qlaws-Tech/qlaws-mulit-tenant.git&quot;,
+    &quot;accountId&quot;: &quot;599f5adf-4964-4ec6-950e-09a1d39bd57c&quot;
   }
-}]]></component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 3
-}]]></component>
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 3
+}</component>
   <component name="ProjectId" id="35sZJydGuZgAaqbxjdndSU7hpD9" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -80,15 +160,19 @@
     "RunOnceActivity.git.unshallow": "true",
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "SHELLCHECK.PATH": "/home/soham/.local/share/JetBrains/PyCharmCE2025.2/Shell Script/shellcheck",
-    "Shell Script.entrypoint.sh.executor": "Run",
+    "Shell Script.entrypoint.sh.executor": "Debug",
     "git-widget-placeholder": "main",
-    "last_opened_file_path": "/home/soham/qlaws-backend/qlaws-mulit-tenant/tests/unit",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyIntegratedToolsModulesConfigurable"
+    "last_opened_file_path": "/home/soham/qlaws-backend/qlaws-mulit-tenant/documents",
+    "settings.editor.selected.configurable": "org.jetbrains.plugins.github.ui.GithubSettingsConfigurable"
   }
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/documents" />
       <recent name="$PROJECT_DIR$/tests/unit" />
+      <recent name="$PROJECT_DIR$" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
     </key>
   </component>
@@ -108,7 +192,7 @@
       <envs />
       <method v="2" />
     </configuration>
-    <configuration name="pytest in test_mfa_flow.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
+    <configuration name="pytest in test_api_keys.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
       <module name="qlaws-mulit-tenant" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -121,11 +205,11 @@
       <option name="_new_keywords" value="&quot;&quot;" />
       <option name="_new_parameters" value="&quot;&quot;" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/integration/test_mfa_flow.py&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/integration/test_api_keys.py&quot;" />
       <option name="_new_targetType" value="&quot;PATH&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="pytest in test_secured_api.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
+    <configuration name="pytest in test_startup_health.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
       <module name="qlaws-mulit-tenant" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -138,11 +222,11 @@
       <option name="_new_keywords" value="&quot;&quot;" />
       <option name="_new_parameters" value="&quot;&quot;" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/e2e/test_secured_api.py&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/integration/test_startup_health.py&quot;" />
       <option name="_new_targetType" value="&quot;PATH&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="pytest in test_session_mgmt.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
+    <configuration name="pytest in test_tenant_service.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
       <module name="qlaws-mulit-tenant" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -155,11 +239,11 @@
       <option name="_new_keywords" value="&quot;&quot;" />
       <option name="_new_parameters" value="&quot;&quot;" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/e2e/test_session_mgmt.py&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/unit/test_tenant_service.py&quot;" />
       <option name="_new_targetType" value="&quot;PATH&quot;" />
       <method v="2" />
     </configuration>
-    <configuration name="pytest in test_tenant_api.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
+    <configuration name="pytest in test_user_context.py" type="tests" factoryName="py.test" temporary="true" nameIsGenerated="true">
       <module name="qlaws-mulit-tenant" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -172,17 +256,24 @@
       <option name="_new_keywords" value="&quot;&quot;" />
       <option name="_new_parameters" value="&quot;&quot;" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/e2e/test_tenant_api.py&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/integration/test_user_context.py&quot;" />
       <option name="_new_targetType" value="&quot;PATH&quot;" />
       <method v="2" />
     </configuration>
+    <list>
+      <item itemvalue="Python tests.pytest in test_user_context.py" />
+      <item itemvalue="Python tests.pytest in test_api_keys.py" />
+      <item itemvalue="Python tests.pytest in test_startup_health.py" />
+      <item itemvalue="Python tests.pytest in test_tenant_service.py" />
+      <item itemvalue="Shell Script.entrypoint.sh" />
+    </list>
     <recent_temporary>
       <list>
         <item itemvalue="Shell Script.entrypoint.sh" />
-        <item itemvalue="Python tests.pytest in test_mfa_flow.py" />
-        <item itemvalue="Python tests.pytest in test_tenant_api.py" />
-        <item itemvalue="Python tests.pytest in test_session_mgmt.py" />
-        <item itemvalue="Python tests.pytest in test_secured_api.py" />
+        <item itemvalue="Python tests.pytest in test_user_context.py" />
+        <item itemvalue="Python tests.pytest in test_tenant_service.py" />
+        <item itemvalue="Python tests.pytest in test_api_keys.py" />
+        <item itemvalue="Python tests.pytest in test_startup_health.py" />
       </list>
     </recent_temporary>
   </component>
@@ -202,5 +293,60 @@
       <updated>1763900671758</updated>
     </task>
     <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Add changes for Multi tenant" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add changes for Multi tenant" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/app/core/auth_strategy.py</url>
+          <line>11</line>
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/app/modules/invitations/schemas.py</url>
+          <line>2</line>
+          <option name="timeStamp" value="4" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/app/modules/users/schemas.py</url>
+          <line>4</line>
+          <option name="timeStamp" value="5" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/venv/lib/python3.11/site-packages/fastapi/openapi/models.py</url>
+          <line>24</line>
+          <option name="timeStamp" value="6" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/venv/lib/python3.11/site-packages/fastapi/openapi/models.py</url>
+          <line>25</line>
+          <option name="timeStamp" value="7" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/app/modules/tenants/service.py</url>
+          <line>96</line>
+          <option name="timeStamp" value="11" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/app/modules/tenants/service.py</url>
+          <line>46</line>
+          <option name="timeStamp" value="12" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/app/modules/tenants/service.py</url>
+          <line>55</line>
+          <option name="timeStamp" value="13" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/app/modules/tenants/service.py</url>
+          <line>75</line>
+          <option name="timeStamp" value="14" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>

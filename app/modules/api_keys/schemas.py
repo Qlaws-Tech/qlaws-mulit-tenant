@@ -1,26 +1,28 @@
-from pydantic import BaseModel, Field, UUID4
-from typing import List, Optional
+# app/modules/api_keys/schemas.py
+
+from pydantic import BaseModel, Field
+from typing import List
+from uuid import UUID
 from datetime import datetime
 
 
 class ApiKeyCreate(BaseModel):
-    name: str = Field(..., min_length=2, description="e.g. 'Okta SCIM'")
-    scopes: List[str] = Field(default_factory=list, description="e.g. ['scim.write', 'audit.read']")
-    expires_in_days: Optional[int] = Field(None, ge=1, le=365)
+    name: str
+    scopes: List[str] = Field(default_factory=list)
 
 
 class ApiKeyResponse(BaseModel):
-    api_key_id: UUID4
+    api_key_id: UUID
     name: str
-    prefix: str  # We only show the prefix (first 8 chars)
     scopes: List[str]
-    last_used_at: Optional[datetime]
-    expires_at: Optional[datetime]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+
+class ApiKeyWithPlain(ApiKeyResponse):
+    plain_key: str
 
 
-class ApiKeyCreatedResponse(ApiKeyResponse):
-    plain_key: str  # CRITICAL: Only returned ONCE upon creation
+class ApiKeyInfo(BaseModel):
+    api_key_id: UUID
+    tenant_id: UUID
+    scopes: List[str]

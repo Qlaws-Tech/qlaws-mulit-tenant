@@ -1,27 +1,51 @@
-from pydantic import BaseModel, Field, EmailStr
+# app/modules/scim/schemas.py
+
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional, Dict, Any
+from uuid import UUID
+from datetime import datetime
 
-# SCIM has complex nested objects
-class ScimName(BaseModel):
-    givenName: str
-    familyName: str
 
-class ScimEmail(BaseModel):
-    value: EmailStr
-    primary: bool = False
+# -----------------------------
+# SCIM INPUT MODELS
+# -----------------------------
 
-class ScimUserCreate(BaseModel):
-    # IdPs send this specific schema URN
-    schemas: List[str] = ["urn:ietf:params:scim:schemas:core:2.0:User"]
+class SCIMName(BaseModel):
+    givenName: Optional[str] = None
+    familyName: Optional[str] = None
+
+
+class SCIMEmail(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    value: str
+    primary: bool = True
+
+
+class SCIMUserCreate(BaseModel):
+    schemas: List[str]
     userName: str
-    name: ScimName
-    emails: List[ScimEmail]
+    name: Optional[SCIMName] = None
+    emails: Optional[List[SCIMEmail]] = None
     active: bool = True
     externalId: Optional[str] = None
 
-class ScimResponse(BaseModel):
-    schemas: List[str] = ["urn:ietf:params:scim:schemas:core:2.0:User"]
-    id: str
+
+# -----------------------------
+# SCIM OUTPUT MODELS
+# -----------------------------
+
+class SCIMMeta(BaseModel):
+    resourceType: str = "User"
+    created: datetime
+    lastModified: datetime
+    location: str
+
+
+class SCIMUserResponse(BaseModel):
+    id: UUID
     userName: str
+    name: Optional[SCIMName] = None
+    emails: Optional[List[SCIMEmail]] = None
     active: bool
-    meta: Dict[str, Any]
+    externalId: Optional[str] = None
+    meta: SCIMMeta

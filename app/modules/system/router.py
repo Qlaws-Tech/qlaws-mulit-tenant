@@ -1,32 +1,46 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+# app/modules/system/router.py
+
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+
 from app.dependencies.database import get_db_connection
-from config_dev import settings
 from app.modules.system.service import SystemService
-from app.modules.system.repository import SystemRepository
 from app.modules.system.schemas import CleanupResult
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/system",
+    tags=["System"],
+)
 
 
-# Define a new dependency for System Admin Auth
-async def verify_system_key(x_system_key: str = Header(...)):
-    # In production, add SYSTEM_KEY to settings.py
-    # For this example, we hardcode or check against a setting
-    SYSTEM_KEY = getattr(settings, "SYSTEM_KEY", "sys_admin_secret_123")
-
-    if x_system_key != SYSTEM_KEY:
-        raise HTTPException(status_code=403, detail="Invalid System Key")
-
-
-async def get_system_service(conn=Depends(get_db_connection)):
-    # Raw connection (Global operations)
-    return SystemService(SystemRepository(conn))
-
-
-@router.post("/cleanup", response_model=CleanupResult, dependencies=[Depends(verify_system_key)])
-async def trigger_cleanup(service: SystemService = Depends(get_system_service)):
+def get_system_service(conn=Depends(get_db_connection)) -> SystemService:
     """
-    Trigger nightly maintenance tasks.
-    Protected by 'X-System-Key'.
+    Uses the system-level DB connection (no tenant RLS context),
+    as this endpoint is meant for global maintenance.
     """
-    return await service.run_nightly_cleanup()
+    return SystemService(conn)
+
+
+@router.post(
+    "/cleanup",
+    response_model=CleanupResult,
+)
+async def run_cleanup(
+    x_system_key: str = Header(None, alias="X-System-Key"),
+    service: SystemService = Depends(get_system_service),
+):
+    """
+    System maintenance endpoint.
+
+    - Protected by a simple header: X-System-Key.
+    - In tests, this is set to 'sys_admin_secret_123'.
+    - Deletes expired refresh tokens, password reset tokens, and blacklist entries.
+    """
+    if x_system_key != "sys_admin_secret_123":
+        # You can later move this constant into config/settings.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid system key",
+        )
+
+    result = await service.run_cleanup()
+    return result

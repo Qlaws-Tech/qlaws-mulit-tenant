@@ -1,32 +1,58 @@
-from pydantic import BaseModel, Field, EmailStr, UUID4
-from typing import Optional, Dict, Any
+# app/modules/tenants/schemas.py
+
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional
+from uuid import UUID
+from enum import Enum
 from datetime import datetime
 
 
+class TenantPlan(str, Enum):
+    free = "free"
+    startup = "startup"
+    pro = "pro"
+    enterprise = "enterprise"
+
+
 class TenantCreate(BaseModel):
+    """
+    Payload used by POST /api/v1/tenants/.
+    Tests expect:
+      - name
+      - plan (must be a valid enum -> invalid => 422)
+      - admin_email
+      - admin_password
+      - admin_name
+    We also support domain/region for real app usage.
+    """
+    model_config = ConfigDict(from_attributes=True)
     name: str = Field(..., min_length=2)
     domain: Optional[str] = None
-    plan: str = Field("startup", pattern="^(startup|enterprise)$")
-    region: str = Field("us-east-1")
-    config: Dict[str, Any] = {}
+    plan: TenantPlan = TenantPlan.startup
+    region: Optional[str] = None
 
-    # --- NEW: Admin Fields for Onboarding ---
     admin_email: str
-    admin_password: str = Field(..., min_length=8)
+    admin_password: str
     admin_name: str
 
 
 class TenantResponse(BaseModel):
-    tenant_id: UUID4
+    """
+    General tenant info (for listing / detail).
+    """
+    tenant_id: UUID
     name: str
+    domain: Optional[str]
+    plan: TenantPlan
+    region: Optional[str] = None
     status: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
 
-
-class TenantOnboardingResponse(TenantResponse):
-    # Returns Tenant info + Initial Admin info
+class TenantOnboardingResponse(BaseModel):
+    """
+    Response shape used by service tests.
+    """
+    model_config = ConfigDict(from_attributes=True)
+    tenant_id: UUID
     admin_email: str
-    message: str = "Tenant and Admin created successfully"
