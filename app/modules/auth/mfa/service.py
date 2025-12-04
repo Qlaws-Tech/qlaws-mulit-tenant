@@ -27,8 +27,7 @@ class MFAService:
         tenant_id: UUID,
         payload: MFAEnrollRequest,
     ) -> MFAEnrollResponse:
-        # In a real system we would generate a TOTP secret (base32, etc.).
-        # For tests we only need a stable secret string.
+
         secret = secrets.token_hex(16)
         return await self.repo.create_method(user_id, tenant_id, payload, secret)
 

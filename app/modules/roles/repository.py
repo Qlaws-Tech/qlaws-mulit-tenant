@@ -342,10 +342,7 @@ class RoleRepository:
     async def _fetch_permissions_for_keys(
             self, permission_keys: List[str]
     ) -> List[asyncpg.Record]:
-        """
-        If permission_keys contains '*', return *all* permissions.
-        Otherwise return only those whose key is in permission_keys.
-        """
+
         if not permission_keys:
             return []
 
