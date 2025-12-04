@@ -15,7 +15,7 @@ pip install redis
 
 
 #Install New Libraries - SMTP, Rate Limiting, and Redis.
-pip install aiosmtplib slowapi redis httpx
+pip install aiosmtplib httpx
 
 pip install cryptography pyotp pytest-asyncio
 pip install "bcrypt==4.0.1"

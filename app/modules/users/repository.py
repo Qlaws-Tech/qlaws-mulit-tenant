@@ -1,8 +1,6 @@
-# app/modules/users/repository.py
-
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import asyncpg
@@ -59,6 +57,8 @@ class UserRepository:
         tenant_role: str = data.get("tenant_role") or data.get("role") or "member"
         status: str = data.get("status") or "active"
         tenant_email: str = data.get("tenant_email") or email
+        # NEW: persona stored per tenant membership
+        persona: Optional[str] = data.get("persona") or data.get("user_persona")
 
         # 1) Insert into USERS
         user_row = await self.conn.fetchrow(
@@ -92,9 +92,10 @@ class UserRepository:
                 user_id,
                 tenant_email,
                 tenant_role,
-                status
+                status,
+                persona
             )
-            VALUES ($1, $2, $3, $4, $5)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING
                 user_tenant_id,
                 tenant_id,
@@ -102,6 +103,7 @@ class UserRepository:
                 tenant_email,
                 tenant_role,
                 status,
+                persona,
                 created_at,
                 last_accessed_at
             """,
@@ -110,6 +112,7 @@ class UserRepository:
             tenant_email,
             tenant_role,
             status,
+            persona,
         )
 
         return {
@@ -141,7 +144,8 @@ class UserRepository:
                 ut.tenant_id,
                 ut.tenant_email,
                 ut.tenant_role,
-                ut.status AS tenant_status
+                ut.status AS tenant_status,
+                ut.persona
             FROM users u
             JOIN user_tenants ut
               ON ut.user_id = u.user_id
@@ -194,6 +198,7 @@ class UserRepository:
         - tenant info
         - roles in that tenant
         - permissions as *keys* (strings), not UUIDs
+        - persona (Partner, Paralegal, etc.) for this tenant
         """
         row = await self.conn.fetchrow(
             """
@@ -212,7 +217,8 @@ class UserRepository:
                     ARRAY_AGG(DISTINCT p.key)
                     FILTER (WHERE p.key IS NOT NULL),
                     '{}'
-                ) AS permissions
+                ) AS permissions,
+                MAX(ut.persona) AS persona
             FROM users u
             JOIN user_tenants ut
                 ON ut.user_id = u.user_id
@@ -244,6 +250,7 @@ class UserRepository:
 
         roles = row["roles"] or []
         permissions = row["permissions"] or []
+        persona = row["persona"]
 
         # Pydantic expects list[str] for roles & permissions
         return UserContext(
@@ -254,6 +261,7 @@ class UserRepository:
             tenant_name=row["tenant_name"],
             roles=list(roles),
             permissions=list(permissions),
+            persona=persona,
         )
 
     # -------------------------------------------------------------------------
@@ -270,6 +278,7 @@ class UserRepository:
                 ut.tenant_id,
                 ut.tenant_email,
                 ut.tenant_role,
+                ut.persona,
                 ut.status AS tenant_status,
                 u.is_verified,
                 u.mfa_enabled,
@@ -287,20 +296,20 @@ class UserRepository:
         results = []
         for r in rows:
             d = dict(r)
+            # roles comes from tenant_role
             d["roles"] = [d.pop("tenant_role")] if d.get("tenant_role") else []
-            perm_rows = await self.conn.fetch(
-            """
-                    select distinct p.key 
-                    from role_permissions rp
-                    join permissions p on rp.permission_id = p.permission_id                    
-                    WHERE rp.tenant_id = $1
-                    """,
-                    tenant_id,
-                )
 
+            # Fetch tenant-wide permissions
+            perm_rows = await self.conn.fetch(
+                """
+                SELECT DISTINCT p.key
+                FROM role_permissions rp
+                JOIN permissions p ON rp.permission_id = p.permission_id
+                WHERE rp.tenant_id = $1
+                """,
+                tenant_id,
+            )
             permission_keys = [row["key"] for row in perm_rows]
-            print(permission_keys)
-            # 👇 add permission_keys into d
             d["permissions"] = permission_keys
 
             results.append(d)
@@ -358,4 +367,25 @@ class UserRepository:
             """,
             user_id,
             tenant_id,
+        )
+
+    # NEW: persona update per tenant
+    async def update_user_persona(
+        self,
+        user_id: UUID,
+        tenant_id: UUID,
+        persona: Optional[str],
+    ) -> None:
+        """
+        Update persona on user_tenants for a specific tenant.
+        """
+        await self.conn.execute(
+            """
+            UPDATE user_tenants
+            SET persona = $3, updated_at = now()
+            WHERE user_id = $1 AND tenant_id = $2
+            """,
+            user_id,
+            tenant_id,
+            persona,
         )

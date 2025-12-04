@@ -1,5 +1,3 @@
-# app/modules/users/service.py
-
 from uuid import UUID
 from typing import List
 
@@ -42,7 +40,6 @@ class UserService:
             d = dict(r)
             # Ensure 'roles' is a list. The repo might return 'tenant_role' string.
             if "roles" not in d:
-                # Pop tenant_role to clean up dict and use it for roles list
                 role = d.pop("tenant_role", None)
                 d["roles"] = [role] if role else []
 
@@ -58,7 +55,6 @@ class UserService:
         if not tenant_id:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tenant context missing")
 
-        # Reuse get_user_context which returns a Pydantic model compatible with UserResponse
         ctx = await self.user_repo.get_user_context(user_id, tenant_id)
         if not ctx:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
@@ -70,7 +66,8 @@ class UserService:
             email=ctx.email,
             display_name=ctx.display_name,
             roles=ctx.roles,
-            permissions=ctx.permissions
+            permissions=ctx.permissions,
+            persona=ctx.persona,
         )
 
     async def create_user(self, payload: UserCreate) -> UserResponse:
@@ -89,7 +86,9 @@ class UserService:
             "hashed_password": hashed,
             "tenant_id": tenant_id_str,
             "tenant_role": "member",  # Default role
-            "status": "active"
+            "status": "active",
+            # NEW: persona from API payload
+            "persona": payload.persona,
         }
 
         # 3. Create (returns dict)
@@ -106,7 +105,10 @@ class UserService:
                 action_type="user.create",
                 resource_type="user",
                 resource_id=str(user_id),
-                details={"email": email},
+                details={
+                    "email": email,
+                    "persona": mem_data.get("persona"),
+                },
             )
         )
 
@@ -118,7 +120,8 @@ class UserService:
             display_name=user_data["display_name"],
             created_at=user_data["created_at"],
             roles=[mem_data["tenant_role"]],
-            permissions=[]
+            permissions=[],
+            persona=mem_data.get("persona"),
         )
 
     async def update_user(self, user_id: UUID, payload: UserUpdate) -> UserResponse:
@@ -128,10 +131,18 @@ class UserService:
         # Update profile (repo returns dict or None)
         updated_data = await self.user_repo.update_user_profile(
             user_id,
-            display_name=payload.display_name
+            display_name=payload.display_name,
         )
         if not updated_data:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found or update failed")
+
+        # NEW: update persona on user_tenants if provided
+        if payload.persona is not None:
+            await self.user_repo.update_user_persona(
+                user_id=user_id,
+                tenant_id=existing.tenant_id,
+                persona=payload.persona,
+            )
 
         # Audit
         await self.audit_repo.log_event(
@@ -143,9 +154,7 @@ class UserService:
             )
         )
 
-        # Return updated state
-        # We need to re-fetch to get full context or patch the existing object
-        # Simplest is to call get_user again to ensure roles/permissions are included
+        # Return updated state (re-fetch to include roles/permissions/persona)
         return await self.get_user(user_id)
 
     async def deactivate_user(self, user_id: UUID, tenant_id: UUID):
@@ -169,6 +178,7 @@ class UserService:
 
         redirect_url = self._compute_redirect_url(ctx.permissions)
 
+        # ctx now includes persona; CurrentUserResponse has persona field
         return CurrentUserResponse(
             **ctx.dict(),
             redirect_url=redirect_url,

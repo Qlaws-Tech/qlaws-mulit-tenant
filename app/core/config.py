@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------
     # Redis / Cache
     # -------------------------------------------------
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str = "REDIS_URL=redis://localhost:6379/0"
 
     # -------------------------------------------------
     # JWT / Auth
@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080  # (e.g., 7 days)
 
     # Optional “pepper” for password hashing (extra static secret)
     # You can override this in .env:

@@ -40,7 +40,7 @@ class Cache:
             if self.redis is None:
                 await self.connect()
             return bool(await self.redis.ping())
-        except Exception:
+        except Exception as ex:
             return False
 
     async def get(self, key: str):

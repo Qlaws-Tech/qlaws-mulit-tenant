@@ -1,5 +1,3 @@
-# app/modules/users/schemas.py
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -17,6 +15,8 @@ class UserCreate(BaseModel):
     email: str
     password: str = Field(min_length=8)
     display_name: str
+    # NEW: optional persona like "Partner", "Paralegal", etc.
+    persona: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -27,6 +27,8 @@ class UserUpdate(BaseModel):
     email: Optional[str] = None
     password: Optional[str] = Field(default=None, min_length=8)
     display_name: Optional[str] = None
+    # NEW: allow updating persona
+    persona: Optional[str] = None
     # you can extend with more optional fields later (status, locale, etc.)
 
 
@@ -51,8 +53,10 @@ class UserContext(BaseModel):
     display_name: str
     tenant_id: UUID
     tenant_name: str
-    roles: List[str]          # <- NEW
-    permissions: List[str] = None
+    roles: List[str]
+    permissions: List[str] = Field(default_factory=list)
+    # NEW: persona on the tenant membership
+    persona: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -71,6 +75,8 @@ class UserResponse(BaseModel):
 
     roles: List[str] = Field(default_factory=list)
     permissions: List[str] = Field(default_factory=list)
+    # NEW: persona included in list/detail responses
+    persona: Optional[str] = None
 
 
 class CurrentUserResponse(BaseModel):
@@ -89,6 +95,7 @@ class CurrentUserResponse(BaseModel):
 
     roles: List[str] = Field(default_factory=list)
     permissions: List[str] = Field(default_factory=list)
+    # NEW: persona for current user
+    persona: Optional[str] = None
 
     redirect_url: str
-
