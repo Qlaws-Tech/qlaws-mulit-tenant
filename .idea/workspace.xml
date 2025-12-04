@@ -5,21 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8b8699e3-02fa-4430-b157-71986000358d" name="Changes" comment="Add changes for Multi tenant">
-      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/qlaws-mulit-tenant.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/qlaws-mulit-tenant.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README_PROD.md" beforeDir="false" afterPath="$PROJECT_DIR$/README_PROD.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/core/cache.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/cache.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/core/security.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/security.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/modules/roles/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/roles/repository.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/modules/tenants/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/tenants/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/modules/users/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/users/repository.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/modules/users/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/users/schemas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/modules/users/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/users/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/entrypoint.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -97,7 +83,7 @@
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "SHELLCHECK.PATH": "/home/soham/.local/share/JetBrains/PyCharmCE2025.2/Shell Script/shellcheck",
     "Shell Script.entrypoint.sh.executor": "Debug",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "Merging main",
     "ignore.virus.scanning.warn.message": "true",
     "last_opened_file_path": "E:/Qlaws-backend/qlaws-mulit-tenant",
     "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
