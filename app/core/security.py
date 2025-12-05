@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Union
 
 import hashlib
+from uuid import uuid4
+
 from fastapi import HTTPException, Request, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -93,22 +95,27 @@ def _create_token(
     return encoded_jwt
 
 
-def create_access_token(
-    data: Dict[str, Any],
-    expires_delta: Optional[timedelta] = None,
-) -> str:
-    """Create an access token (short-lived)."""
-    return _create_token(data=data, expires_delta=expires_delta, token_type="access")
+def create_access_token(data: dict, expires_delta=None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({
+        "exp": expire,
+        "type": "access",
+        "jti": str(uuid4())
+    })
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
 
 
-def create_refresh_token(
-    data: Dict[str, Any],
-    expires_delta: Optional[timedelta] = None,
-) -> str:
-    """Create a refresh token (typically longer-lived)."""
-    if expires_delta is None:
-        expires_delta = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    return _create_token(data=data, expires_delta=expires_delta, token_type="refresh")
+
+def create_refresh_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({
+        "exp": expire,
+        "type": "refresh",
+        "jti": str(uuid4())
+    })
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
 
 
 def decode_token(token: str, verify_exp: bool = True) -> Optional[Dict[str, Any]]:
@@ -179,3 +186,7 @@ def hash_access_token(token: str) -> str:
 def hash_refresh_token(token: str) -> str:
     """Alias used by other modules (e.g. invitations / refresh-token storage)."""
     return _sha256_hex(token)
+
+
+def datetime_from_timestamp(ts: int):
+    return datetime.fromtimestamp(ts, tz=timezone.utc)
