@@ -5,9 +5,19 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8b8699e3-02fa-4430-b157-71986000358d" name="Changes" comment="Add changes for Multi tenant">
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/qlaws-mulit-tenant.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/qlaws-mulit-tenant.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/modules/auth/mfa/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/auth/mfa/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README_PROD.md" beforeDir="false" afterPath="$PROJECT_DIR$/README_PROD.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/cache.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/cache.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/security.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/security.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/modules/roles/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/roles/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/tenants/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/tenants/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/users/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/users/repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/users/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/users/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modules/users/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/modules/users/service.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -37,12 +47,12 @@
     &quot;assignee&quot;: &quot;nitinnedate&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/Qlaws-Tech/qlaws-mulit-tenant.git",
-    "accountId": "b1ac9e11-8ac1-4355-887d-d846803fb8dd"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Qlaws-Tech/qlaws-mulit-tenant.git&quot;,
+    &quot;accountId&quot;: &quot;599f5adf-4964-4ec6-950e-09a1d39bd57c&quot;
   }
-}]]></component>
+}</component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 3
 }</component>
@@ -51,47 +61,46 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python tests.Python tests in test_tenant_service.py.executor": "Run",
-    "Python tests.pytest for tests.integration.test_user_context.test_user_context_and_redirect.executor": "Run",
-    "Python tests.pytest for tests.unit.services.test_tenant_service.test_onboard_tenant_domain_conflict.executor": "Run",
-    "Python tests.pytest for tests.unit.services.test_tenant_service.test_onboard_tenant_success.executor": "Run",
-    "Python tests.pytest for tests.unit.services.test_tenant_service.test_register_tenant_domain_conflict.executor": "Run",
-    "Python tests.pytest in test_api_keys.py.executor": "Run",
-    "Python tests.pytest in test_audit_api.py.executor": "Run",
-    "Python tests.pytest in test_auth_flow.py.executor": "Run",
-    "Python tests.pytest in test_groups.py.executor": "Run",
-    "Python tests.pytest in test_logout.py.executor": "Run",
-    "Python tests.pytest in test_mfa_flow.py.executor": "Run",
-    "Python tests.pytest in test_password_reset.py.executor": "Run",
-    "Python tests.pytest in test_rbac_crud.py.executor": "Run",
-    "Python tests.pytest in test_rls_enforcement.py.executor": "Run",
-    "Python tests.pytest in test_scim_provisioning.py.executor": "Run",
-    "Python tests.pytest in test_secured_api.py.executor": "Run",
-    "Python tests.pytest in test_session_mgmt.py.executor": "Run",
-    "Python tests.pytest in test_sso_encryption.py.executor": "Run",
-    "Python tests.pytest in test_startup_health.py.executor": "Run",
-    "Python tests.pytest in test_system_cleanup.py.executor": "Run",
-    "Python tests.pytest in test_tenant_api.py.executor": "Run",
-    "Python tests.pytest in test_tenant_repo.py.executor": "Run",
-    "Python tests.pytest in test_tenant_service.py.executor": "Run",
-    "Python tests.pytest in test_user_context.py.executor": "Run",
-    "Python.test_tenant_service.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "SHELLCHECK.PATH": "/home/soham/.local/share/JetBrains/PyCharmCE2025.2/Shell Script/shellcheck",
-    "Shell Script.entrypoint.sh.executor": "Debug",
-    "git-widget-placeholder": "main",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "E:/Qlaws-backend/qlaws-mulit-tenant",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python tests.Python tests in test_tenant_service.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest for tests.integration.test_user_context.test_user_context_and_redirect.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest for tests.unit.services.test_tenant_service.test_onboard_tenant_domain_conflict.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest for tests.unit.services.test_tenant_service.test_onboard_tenant_success.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest for tests.unit.services.test_tenant_service.test_register_tenant_domain_conflict.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_api_keys.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_audit_api.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_auth_flow.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_groups.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_logout.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_mfa_flow.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_password_reset.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_rbac_crud.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_rls_enforcement.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_scim_provisioning.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_secured_api.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_session_mgmt.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_sso_encryption.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_startup_health.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_system_cleanup.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_tenant_api.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_tenant_repo.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_tenant_service.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python tests.pytest in test_user_context.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test_tenant_service.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;SHELLCHECK.PATH&quot;: &quot;/home/soham/.local/share/JetBrains/PyCharmCE2025.2/Shell Script/shellcheck&quot;,
+    &quot;Shell Script.entrypoint.sh.executor&quot;: &quot;Debug&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/soham/development/rag_forensic&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
@@ -206,7 +215,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-164cda30dcd9-0af03a5fa574-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.26830.99" />
+        <option value="bundled-python-sdk-7bb8055f9097-cbfc7b97e6b2-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-252.28238.29" />
       </set>
     </attachedChunks>
   </component>
@@ -237,6 +246,11 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/app/core/auth_strategy.py</url>
+          <line>11</line>
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/app/modules/invitations/schemas.py</url>
           <line>2</line>
           <option name="timeStamp" value="4" />
@@ -255,6 +269,11 @@
           <url>file://$PROJECT_DIR$/venv/lib/python3.11/site-packages/fastapi/openapi/models.py</url>
           <line>25</line>
           <option name="timeStamp" value="7" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/app/modules/users/repository.py</url>
+          <line>2</line>
+          <option name="timeStamp" value="8" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
